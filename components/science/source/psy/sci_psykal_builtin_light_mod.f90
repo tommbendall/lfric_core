@@ -21,6 +21,7 @@ contains
   ! details.
   subroutine invoke_real32_field_min_max(field_min_norm, &
                                          field_max_norm, &
+                                         field_sum,      &
                                          real32_field)
 
     use scalar_real32_mod,  only: scalar_real32_type
@@ -33,11 +34,13 @@ contains
 
     real(kind=real32),              intent(out)  :: field_min_norm
     real(kind=real32),              intent(out)  :: field_max_norm
+    real(kind=real32),              intent(out)  :: field_sum
     type(field_real32_type),         intent(in)  :: real32_field
-    type(scalar_real32_type)                     :: global_min, global_max
+    type(scalar_real32_type)                     :: global_min, global_max, global_sum
     integer(kind=i_def)                          :: df
     real(kind=real32), allocatable, dimension(:) :: l_field_min_norm
     real(kind=real32), allocatable, dimension(:) :: l_field_max_norm
+    real(kind=real32), allocatable, dimension(:) :: l_field_sum
     real(kind=real32)                            :: minv, maxv
     integer(kind=i_def)                          :: th_idx
     integer(kind=i_def)                          :: loop0_start
@@ -54,6 +57,7 @@ contains
     field_proxy = real32_field%get_proxy()
     maxv = huge(maxv)
     minv = -huge(minv)
+    field_sum = 0.0_real32
     !
     ! Set-up all of the loop bounds
     !
@@ -64,9 +68,11 @@ contains
     !
     allocate (l_field_min_norm(nthreads))
     allocate (l_field_max_norm(nthreads))
+    allocate (l_field_sum(nthreads))
     !
     l_field_min_norm(:) = maxv
     l_field_max_norm(:) = minv
+    l_field_sum(:) = 0.0_real32
     !
     !$omp parallel default(shared), private(df,th_idx)
     th_idx = omp_get_thread_num()+1
@@ -76,6 +82,7 @@ contains
                                  field_proxy%data(df))
       l_field_max_norm(th_idx) = max(l_field_max_norm(th_idx), &
                                  field_proxy%data(df))
+      l_field_sum(th_idx) = l_field_sum(th_idx) + field_proxy%data(df)*field_proxy%data(df)
     end do
     !$omp end do
     !$omp end parallel
@@ -84,15 +91,19 @@ contains
     !
     field_min_norm = l_field_min_norm(1)
     field_max_norm = l_field_max_norm(1)
+    field_sum = l_field_sum(1)
     do th_idx=2,nthreads
       field_min_norm = min(field_min_norm, l_field_min_norm(th_idx))
       field_max_norm = max(field_max_norm, l_field_max_norm(th_idx))
+      field_sum = field_sum + l_field_sum(th_idx)
     end do
-    deallocate (l_field_min_norm, l_field_max_norm)
+    deallocate (l_field_min_norm, l_field_max_norm, l_field_sum)
     global_min%value = field_min_norm
     global_max%value = field_max_norm
+    global_sum%value = field_sum
     field_min_norm = global_min%get_min()
     field_max_norm = global_max%get_max()
+    field_sum = global_sum%get_sum()
     !
   end subroutine invoke_real32_field_min_max
 
@@ -102,6 +113,7 @@ contains
   !  details.
   subroutine invoke_real64_field_min_max(field_min_norm, &
                                          field_max_norm, &
+                                         field_sum, &
                                          real64_field)
 
     use scalar_real64_mod,  only: scalar_real64_type
@@ -114,11 +126,14 @@ contains
 
     real(kind=real64),               intent(out) :: field_min_norm
     real(kind=real64),               intent(out) :: field_max_norm
+    real(kind=real64),               intent(out) :: field_sum
     type(field_real64_type),          intent(in) :: real64_field
-    type(scalar_real64_type)                     :: global_min, global_max
+    type(scalar_real64_type)                     :: global_min, global_max, &
+                                                    global_sum
     integer(kind=i_def)                          :: df
     real(kind=real64), allocatable, dimension(:) :: l_field_min_norm
     real(kind=real64), allocatable, dimension(:) :: l_field_max_norm
+    real(kind=real64), allocatable, dimension(:) :: l_field_sum
     real(kind=real64)                            :: minv, maxv
     integer(kind=i_def)                          :: th_idx
     integer(kind=i_def)                          :: loop0_start
@@ -135,6 +150,7 @@ contains
     field_proxy = real64_field%get_proxy()
     maxv = huge(maxv)
     minv = -huge(minv)
+    field_sum = 0.0_real64
     !
     ! Set-up all of the loop bounds
     !
@@ -145,9 +161,11 @@ contains
     !
     allocate (l_field_min_norm(nthreads))
     allocate (l_field_max_norm(nthreads))
+    allocate (l_field_sum(nthreads))
     !
     l_field_min_norm(:) = maxv
     l_field_max_norm(:) = minv
+    l_field_sum(:) = 0.0_real64
     !
     !$omp parallel default(shared), private(df,th_idx)
     th_idx = omp_get_thread_num()+1
@@ -157,6 +175,7 @@ contains
                                  field_proxy%data(df))
       l_field_max_norm(th_idx) = max(l_field_max_norm(th_idx), &
                                  field_proxy%data(df))
+      l_field_sum(th_idx) = l_field_sum(th_idx) + field_proxy%data(df)*field_proxy%data(df)
     end do
     !$omp end do
     !$omp end parallel
@@ -165,15 +184,19 @@ contains
     !
     field_min_norm = l_field_min_norm(1)
     field_max_norm = l_field_max_norm(1)
+    field_sum = l_field_sum(1)
     do th_idx=2,nthreads
       field_min_norm = min(field_min_norm, l_field_min_norm(th_idx))
       field_max_norm = max(field_max_norm, l_field_max_norm(th_idx))
+      field_sum = field_sum + l_field_sum(th_idx)
     end do
-    deallocate (l_field_min_norm, l_field_max_norm)
+    deallocate (l_field_min_norm, l_field_max_norm, l_field_sum)
     global_min%value = field_min_norm
     global_max%value = field_max_norm
+    global_sum%value = field_sum
     field_min_norm = global_min%get_min()
     field_max_norm = global_max%get_max()
+    field_sum = global_sum%get_sum()
     !
   end subroutine invoke_real64_field_min_max
 
