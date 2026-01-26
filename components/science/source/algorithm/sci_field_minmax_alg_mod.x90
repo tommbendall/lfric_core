@@ -49,26 +49,26 @@ contains
   !> @param[in] field The field for which the min and max are required
   !> @param[out] fmin The minimum of the field
   !> @param[out] fmax The minimum of the field
-  subroutine get_field_minmax_real32( field, fmin, fmax )
+  subroutine get_field_minmax_real32( field32, fmin, fmax )
     implicit none
-    type(field_real32_type), intent(in) :: field
+    type(field_real32_type), intent(in) :: field32
     real(kind=real32),      intent(out) :: fmin, fmax
 
     ! call the invoke in the PSy layer
-    call invoke_real32_field_min_max( fmin, fmax, field )
+    call invoke_real32_field_min_max( fmin, fmax, field32 )
   end subroutine get_field_minmax_real32
 
   !> Returns minimum and maximum of the data values of a field
   !> @param[in] field The field for which the min and max are required
   !> @param[out] fmin The minimum of the field
   !> @param[out] fmax The minimum of the field
-  subroutine get_field_minmax_real64( field, fmin, fmax )
+  subroutine get_field_minmax_real64( field64, fmin, fmax )
     implicit none
-    type(field_real64_type), intent(in) :: field
+    type(field_real64_type), intent(in) :: field64
     real(kind=real64),      intent(out) :: fmin, fmax
 
     ! call the invoke in the psy layer
-    call invoke_real64_field_min_max( fmin, fmax, field )
+    call invoke_real64_field_min_max( fmin, fmax, field64 )
   end subroutine get_field_minmax_real64
 
   !> Returns minimum and maximum of the data values of a field
@@ -88,39 +88,39 @@ contains
   !> @param[in] field The field for which the min and max are required
   !> @param[out] fmin The minimum of the field
   !> @param[out] fmax The minimum of the field
-  subroutine get_local_field_minmax_real32( field, fmin, fmax )
+  subroutine get_local_field_minmax_real32( field32, fmin, fmax )
     implicit none
-    type(field_real32_type), intent(in)  :: field
+    type(field_real32_type), intent(in)  :: field32
     real(kind=real32),       intent(out) :: fmin, fmax
 
     ! call the invoke in the PSy layer
-    call invoke_real32_local_field_min_max( fmin, fmax, field )
+    call invoke_real32_local_field_min_max( fmin, fmax, field32 )
   end subroutine get_local_field_minmax_real32
 
   !> Returns minimum and maximum of the field data values local to the rank
   !> @param[in] field The field for which the min and max are required
   !> @param[out] fmin The minimum of the field
   !> @param[out] fmax The minimum of the field
-  subroutine get_local_field_minmax_real64( field, fmin, fmax )
+  subroutine get_local_field_minmax_real64( field64, fmin, fmax )
     implicit none
-    type(field_real64_type), intent(in)  :: field
+    type(field_real64_type), intent(in)  :: field64
     real(kind=real64),       intent(out) :: fmin, fmax
 
     ! call the invoke in the psy layer
-    call invoke_real64_local_field_min_max( fmin, fmax, field )
+    call invoke_real64_local_field_min_max( fmin, fmax, field64 )
   end subroutine get_local_field_minmax_real64
 
   !> Returns minimum and maximum of the field data values local to the rank
   !> @param[in] field The field for which the min and max are required
   !> @param[out] fmin The minimum of the field
   !> @param[out] fmax The minimum of the field
-  subroutine get_local_field_minmax_int32( field, fmin, fmax )
+  subroutine get_local_field_minmax_int32( field32, fmin, fmax )
     implicit none
-    type(field_int32_type), intent(in)  :: field
+    type(field_int32_type), intent(in)  :: field32
     integer(kind=int32),    intent(out) :: fmin, fmax
 
     ! call the invoke in the psy layer
-    call invoke_int32_local_field_min_max( fmin, fmax, field )
+    call invoke_int32_local_field_min_max( fmin, fmax, field32 )
   end subroutine get_local_field_minmax_int32
 
   !> Logs the minimum and maximum values of a field to the log
