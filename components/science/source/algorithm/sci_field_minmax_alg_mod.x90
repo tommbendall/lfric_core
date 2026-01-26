@@ -127,21 +127,21 @@ contains
   !> @param[in] log_level The logging level at which to write the message
   !> @param[in] label Text that will be written  along with the min/max
   !> @param[in]  field The field for which the min and max are required
-  subroutine log_field_minmax_real32( log_level, label, field )
+  subroutine log_field_minmax_real32( log_level, label, field32 )
     integer,                     intent(in) :: log_level
     character(len = *),          intent(in) :: label
-    type(field_real32_type),     intent(in) :: field
-    real(kind=real32)                       :: fmin, fmax, fsum
+    type(field_real32_type),     intent(in) :: field32
+    real(kind=real32)                       :: fmin, fmax, fsum32
 
     ! If we aren't going to log the min and max then we don't need to
     ! do any further work here.
     if ( .not. log_at_level(log_level) ) return
 
     ! Calculate min and max field values for real32 field
-    call invoke_real32_field_min_max( fmin, fmax, field )
-    call invoke( sum_X(fsum, field) )
+    call invoke_real32_field_min_max( fmin, fmax, field32 )
+    call invoke( sum_X(fsum32, field32) )
     write( log_scratch_space, '( A, A, A, 3E16.8 )' ) &
-           "Min/max ", trim(label), " = ", fmin, fmax, fsum
+           "Min/max ", trim(label), " = ", fmin, fmax, fsum32
     call log_event( log_scratch_space, log_level )
   end subroutine log_field_minmax_real32
 
@@ -149,21 +149,21 @@ contains
   !> @param[in] log_level The logging level at which to write the message
   !> @param[in] label Text that will be written  along with the min/max
   !> @param[in]  field The field for which the min and max are required
-  subroutine log_field_minmax_real64( log_level, label, field )
+  subroutine log_field_minmax_real64( log_level, label, field64 )
     integer,                     intent(in) :: log_level
     character(len = *),          intent(in) :: label
-    type(field_real64_type),     intent(in) :: field
-    real(kind=real64)                       :: fmin, fmax, fsum
+    type(field_real64_type),     intent(in) :: field64
+    real(kind=real64)                       :: fmin, fmax, fsum64
 
     ! If we aren't going to log the min and max then we don't need to
     ! do any further work here.
     if ( .not. log_at_level(log_level) ) return
 
     ! Calculate min and max field values for real64 field
-    call invoke_real64_field_min_max( fmin, fmax, field )
-    call invoke( sum_X(fsum, field) )
+    call invoke_real64_field_min_max( fmin, fmax, field64 )
+    call invoke( sum_X(fsum64, field64) )
     write( log_scratch_space, '( A, A, A, 3E32.16 )' ) &
-          "Min/max ", trim(label), " = ", fmin, fmax, fsum
+          "Min/max ", trim(label), " = ", fmin, fmax, fsum64
     call log_event( log_scratch_space, log_level )
   end subroutine log_field_minmax_real64
 
