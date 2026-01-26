@@ -131,7 +131,7 @@ contains
     integer,                     intent(in) :: log_level
     character(len = *),          intent(in) :: label
     type(field_real32_type),     intent(in) :: field
-    real(kind=real32)                       :: fmin, fmax
+    real(kind=real32)                       :: fmin, fmax, fsum
 
     ! If we aren't going to log the min and max then we don't need to
     ! do any further work here.
@@ -139,8 +139,9 @@ contains
 
     ! Calculate min and max field values for real32 field
     call invoke_real32_field_min_max( fmin, fmax, field )
-    write( log_scratch_space, '( A, A, A, 2E16.8 )' ) &
-           "Min/max ", trim(label), " = ", fmin, fmax
+    call invoke( sum_X(fsum, field) )
+    write( log_scratch_space, '( A, A, A, 3E16.8 )' ) &
+           "Min/max ", trim(label), " = ", fmin, fmax, fsum
     call log_event( log_scratch_space, log_level )
   end subroutine log_field_minmax_real32
 
@@ -152,7 +153,7 @@ contains
     integer,                     intent(in) :: log_level
     character(len = *),          intent(in) :: label
     type(field_real64_type),     intent(in) :: field
-    real(kind=real64)                       :: fmin, fmax
+    real(kind=real64)                       :: fmin, fmax, fsum
 
     ! If we aren't going to log the min and max then we don't need to
     ! do any further work here.
@@ -160,8 +161,9 @@ contains
 
     ! Calculate min and max field values for real64 field
     call invoke_real64_field_min_max( fmin, fmax, field )
-    write( log_scratch_space, '( A, A, A, 2E16.8 )' ) &
-          "Min/max ", trim(label), " = ", fmin, fmax
+    call invoke( sum_X(fsum, field) )
+    write( log_scratch_space, '( A, A, A, 3E32.16 )' ) &
+          "Min/max ", trim(label), " = ", fmin, fmax, fsum
     call log_event( log_scratch_space, log_level )
   end subroutine log_field_minmax_real64
 
