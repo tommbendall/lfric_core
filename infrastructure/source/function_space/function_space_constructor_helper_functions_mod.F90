@@ -581,7 +581,7 @@ contains
     if (k_h == 0) then
       x2h(1) = 0.5_r_def
     else
-      if (gungho_fs == W3 .or. gungho_fs == Wtheta) then
+      if (gungho_fs == W3) then
         ! Evenly space the points away from the element edges for high order
         ! spaces - this helps with visualising the output
         do i = 1, k_h + 1
@@ -602,7 +602,7 @@ contains
     if (k_v == 0) then
       x2v(1) = 0.5_r_def
     else
-      if (gungho_fs == W3 .or. gungho_fs == Wtheta) then
+      if (gungho_fs == W3) then
         ! Evenly space the points away from the element edges for high order
         ! spaces - this helps with visualising the output
         do i = 1, k_v + 1
