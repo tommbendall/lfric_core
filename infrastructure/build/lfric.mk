@@ -106,7 +106,7 @@ RDEF_PRECISION ?= 64
 export PRE_PROCESS_MACROS += RDEF_PRECISION=$(RDEF_PRECISION)
 
 # Set the r_solver precision for reals
-R_SOLVER_PRECISION ?= 32
+R_SOLVER_PRECISION ?= 64
 export PRE_PROCESS_MACROS += R_SOLVER_PRECISION=$(R_SOLVER_PRECISION)
 
 # Set the r_tran precision for reals
