@@ -1239,6 +1239,7 @@ contains
         ! Can't import multiplicity, so must calculate it
         call ones%initialise( space )
         call nodal_multiplicity%initialise( space )
+        call rmultiplicity%initialise( space )
 
         call invoke(                                                           &
             setval_c(ones, 1.0_r_def),                                         &
@@ -1335,6 +1336,7 @@ contains
         ! Can't import multiplicity, so must calculate it
         call ones%initialise( space )
         call nodal_multiplicity%initialise( space )
+        call rmultiplicity%initialise( space )
 
         call invoke(                                                           &
             setval_c(ones, 1.0_r_def),                                         &
