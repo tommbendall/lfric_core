@@ -1164,7 +1164,10 @@ contains
   !> @return A height field
   function get_height_fe(space_id, mesh_id) result(height)
 
+    use sci_multiplicity_kernel_mod,        only: multiplicity_kernel_type
     use sci_get_height_kernel_mod,          only: get_height_kernel_type
+    use sci_get_height_continuous_kernel_mod,                                  &
+                                            only: get_height_continuous_kernel_type
     use planet_config_mod,                  only: scaled_radius
 
     implicit none
@@ -1177,6 +1180,9 @@ contains
     type(function_space_type),    pointer :: space
     type(field_type),             pointer :: chi(:)
     type(field_type),             pointer :: height
+    type(field_type)                      :: rmultiplicity
+    type(field_type)                      :: nodal_multiplicity
+    type(field_type)                      :: ones
     character(len=str_def)                :: inventory_name
 
     ! If running at lowest order, use finite volume
@@ -1228,7 +1234,25 @@ contains
                                                 element_order_v, space_id)
       call inventory%add_field(height, space, mesh)
 
-      call invoke( get_height_kernel_type(height, chi, scaled_radius) )
+      select case (space_id)
+      case (W0, W1, W2, W2H)
+        ! Can't import multiplicity, so must calculate it
+        call ones%initialise( space )
+        call nodal_multiplicity%initialise( space )
+
+        call invoke(                                                           &
+            setval_c(ones, 1.0_r_def),                                         &
+            setval_c(nodal_multiplicity, 0.0_r_def),                           &
+            multiplicity_kernel_type(nodal_multiplicity),                      &
+            X_divideby_Y(rmultiplicity, ones, nodal_multiplicity),             &
+            setval_c(height, 0.0_r_def),                                       &
+            get_height_continuous_kernel_type(                                 &
+                height, chi, rmultiplicity, scaled_radius                      &
+            )                                                                  &
+        )
+      case default
+        call invoke( get_height_kernel_type(height, chi, scaled_radius) )
+      end select
 
       if ( subroutine_timers ) call timer('runtime_constants.geometric')
     else
@@ -1243,7 +1267,10 @@ contains
   !> @return A height field
   function get_height_fv(space_id, mesh_id) result(height)
 
+    use sci_multiplicity_kernel_mod,        only: multiplicity_kernel_type
     use sci_get_height_kernel_mod,          only: get_height_kernel_type
+    use sci_get_height_continuous_kernel_mod,                                  &
+                                            only: get_height_continuous_kernel_type
     use planet_config_mod,                  only: scaled_radius
 
     implicit none
@@ -1256,6 +1283,9 @@ contains
     type(function_space_type),    pointer :: space
     type(field_type),             pointer :: chi(:)
     type(field_type),             pointer :: height
+    type(field_type)                      :: rmultiplicity
+    type(field_type)                      :: nodal_multiplicity
+    type(field_type)                      :: ones
     character(len=str_def)                :: inventory_name
 
     ! Determine inventory based on space
@@ -1300,7 +1330,25 @@ contains
       space => function_space_collection%get_fs(mesh, 0, 0, space_id)
       call inventory%add_field(height, space, mesh)
 
-      call invoke( get_height_kernel_type(height, chi, scaled_radius) )
+      select case (space_id)
+      case (W0, W1, W2, W2H)
+        ! Can't import multiplicity, so must calculate it
+        call ones%initialise( space )
+        call nodal_multiplicity%initialise( space )
+
+        call invoke(                                                           &
+            setval_c(ones, 1.0_r_def),                                         &
+            setval_c(nodal_multiplicity, 0.0_r_def),                           &
+            multiplicity_kernel_type(nodal_multiplicity),                      &
+            X_divideby_Y(rmultiplicity, ones, nodal_multiplicity),             &
+            setval_c(height, 0.0_r_def),                                       &
+            get_height_continuous_kernel_type(                                 &
+                height, chi, rmultiplicity, scaled_radius                      &
+            )                                                                  &
+        )
+      case default
+        call invoke( get_height_kernel_type(height, chi, scaled_radius) )
+      end select
 
       if ( subroutine_timers ) call timer('runtime_constants.geometric')
     else
