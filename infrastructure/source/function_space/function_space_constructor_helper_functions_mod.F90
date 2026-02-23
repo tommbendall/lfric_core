@@ -584,6 +584,8 @@ contains
       if (gungho_fs == W3) then
         ! Evenly space the points away from the element edges for high order
         ! spaces - this helps with visualising the output
+        ! TODO: this used to be the case for Wtheta until it was also used for
+        ! storing coordinate fields. Issue #250 records this.
         do i = 1, k_h + 1
           x2h(i) = real(i, r_def) / real(k_h + 2, r_def)
         end do
