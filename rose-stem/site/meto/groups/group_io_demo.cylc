@@ -13,8 +13,6 @@
         "io_demo_default-C24_azspice_gnu_full-debug-64bit",
         "io_demo_multifile-C24_azspice_gnu_fast-debug-64bit",
         "io_demo_multifile-C24_azspice_gnu_fast-debug-32bit",
-        "io_demo_benchmark-C24_azspice_gnu_fast-debug-64bit",
-        "io_demo_benchmark-C24_azspice_gnu_fast-debug-32bit",
         "io_demo_azspice_unit_tests",
     ],
     "io_demo_azspice": [
@@ -43,14 +41,7 @@
         "io_demo_multifile-C24_ex1a_cce_fast-debug-32bit",
         "io_demo_multifile-C24_ex1a_gnu_fast-debug-64bit",
         "io_demo_multifile-C24_ex1a_gnu_fast-debug-32bit",
-        "io_demo_benchmark-C24_ex1a_cce_fast-debug-32bit",
-        "io_demo_benchmark-C24_ex1a_gnu_fast-debug-32bit",
-        "io_demo_benchmark-C24_ex1a_gnu_fast-debug-64bit",
         "io_demo_ex1a_unit_tests",
-    ],
-    "io_demo_ex1a_benchmark": [
-        "io_demo_benchmark-nwp-C224_ex1a_cce_fast-debug-32bit",
-        "io_demo_benchmark-nwp-C224_ex1a_gnu_fast-debug-32bit",
     ],
     "io_demo_ex1a": [
         "io_demo_ex1a_developer"
@@ -89,9 +80,6 @@
     "io_demo_canned": [
         "io_demo_azspice_canned",
         "io_demo_ex1a_canned",
-    ],
-    "io_demo_benchmark": [
-        "io_demo_ex1a_benchmark",
     ],
     }) %}
 
