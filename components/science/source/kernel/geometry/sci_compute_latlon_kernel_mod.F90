@@ -14,9 +14,10 @@ module sci_compute_latlon_kernel_mod
                                   ANY_DISCONTINUOUS_SPACE_3, &
                                   ANY_SPACE_9, GH_BASIS,     &
                                   CELL_COLUMN, GH_EVALUATOR
-  use constants_mod,        only: r_def, i_def
+  use constants_mod,        only: r_def, i_def, PI
   use kernel_mod,           only: kernel_type
   use sci_chi_transform_mod, only: chi2llr
+  use log_mod, only: log_level_info, log_scratch_space, log_event
 
   implicit none
 
@@ -115,6 +116,13 @@ subroutine compute_latlon_code(nlayers,                         &
       call chi2llr(coords(1), coords(2), coords(3), ipanel, lon, lat, radius)
       latitude(map_x(df_x) + k) = lat
       longitude(map_x(df_x) + k) = lon
+
+      if (ndf_x == 1) then
+        if (lat > 89.3_r_def * PI / 180.0_r_def) then
+          write(log_scratch_space, *) 'compute_latlon_code: lat = ', lat, 'column: ', map_pid(1)
+          call log_event(log_scratch_space, LOG_LEVEL_INFO)
+        end if
+      end if
     end do
   end do
 
