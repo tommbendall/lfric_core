@@ -119,7 +119,9 @@ subroutine compute_latlon_code(nlayers,                         &
 
       if (ndf_x == 1) then
         if (lat > 89.3_r_def * PI / 180.0_r_def) then
-          write(log_scratch_space, *) 'compute_latlon_code: lat = ', lat, 'column: ', map_pid(1)
+          write(log_scratch_space, *) 'compute_latlon_code: lat = ', &
+            lat * 180.0_r_def / PI, 'lon = ', lon * 180.0_r_def / PI, &
+            'column: ', map_pid(1)
           call log_event(log_scratch_space, LOG_LEVEL_INFO)
         end if
       end if
