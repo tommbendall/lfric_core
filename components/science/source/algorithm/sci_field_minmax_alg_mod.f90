@@ -26,6 +26,7 @@ module sci_field_minmax_alg_mod
   use field_real32_mod,              only : field_real32_type
   use field_real64_mod,              only : field_real64_type
   use field_int32_mod,               only : field_int32_type
+  use constants_mod,                 only : i_def
 
   implicit none
 

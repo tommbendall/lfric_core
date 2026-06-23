@@ -5,7 +5,7 @@
 !-----------------------------------------------------------------------------
 module sci_psykal_builtin_light_mod
 
-  use, intrinsic :: iso_fortran_env, only : real32, real64, int32
+  use, intrinsic :: iso_fortran_env, only : real32, real64, int32, int64
   use constants_mod, only : i_def, i_long, r_def, l_def
   use field_mod,     only : field_type, field_proxy_type
 
