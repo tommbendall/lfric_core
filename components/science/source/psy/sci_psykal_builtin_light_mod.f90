@@ -6,7 +6,7 @@
 module sci_psykal_builtin_light_mod
 
   use, intrinsic :: iso_fortran_env, only : real32, real64, int32
-  use constants_mod, only : i_def, i_long, r_def
+  use constants_mod, only : i_def, i_long, r_def, l_def
   use field_mod,     only : field_type, field_proxy_type
 
   implicit none
@@ -483,9 +483,10 @@ contains
     !
   end subroutine invoke_int32_local_field_min_max
 
-  subroutine invoke_real32_field_sum_norm(field_sum, field_norm, real32_field)
+  subroutine invoke_real32_field_sum_norm(field_sum, field_norm, nan_count, real32_field)
 
     use scalar_real32_mod,  only: scalar_real32_type
+    use scalar_int32_mod,   only: scalar_int32_type
     use omp_lib,            only: omp_get_thread_num
     use omp_lib,            only: omp_get_max_threads
     use field_real32_mod,   only: field_real32_type, &
@@ -493,18 +494,21 @@ contains
 
     implicit none
 
-    real(kind=real32),              intent(out)  :: field_sum
-    real(kind=real32),              intent(out)  :: field_norm
-    type(field_real32_type),         intent(in)  :: real32_field
-    type(scalar_real32_type)                     :: global_sum, global_norm
-    integer(kind=i_def)                          :: df
-    real(kind=real32), allocatable, dimension(:) :: l_field_sum
-    real(kind=real32), allocatable, dimension(:) :: l_field_norm
-    integer(kind=i_def)                          :: th_idx
-    integer(kind=i_def)                          :: loop0_start
-    integer(kind=i_def)                          :: loop0_stop
-    integer(kind=i_def)                          :: nthreads
-    type(field_real32_proxy_type)                :: field_proxy
+    real(kind=real32),                intent(out)  :: field_sum
+    real(kind=real32),                intent(out)  :: field_norm
+    integer(kind=i_def),              intent(out)  :: nan_count
+    type(field_real32_type),           intent(in)  :: real32_field
+    type(scalar_real32_type)                       :: global_sum, global_norm
+    type(scalar_int32_type)                        :: global_nan_count
+    integer(kind=i_def)                            :: df
+    real(kind=real32),   allocatable, dimension(:) :: l_field_sum
+    real(kind=real32),   allocatable, dimension(:) :: l_field_norm
+    integer(kind=i_def), allocatable, dimension(:) :: l_nan_count
+    integer(kind=i_def)                            :: th_idx
+    integer(kind=i_def)                            :: loop0_start
+    integer(kind=i_def)                            :: loop0_stop
+    integer(kind=i_def)                            :: nthreads
+    type(field_real32_proxy_type)                  :: field_proxy
     !
     ! Determine the number of OpenMP threads
     !
@@ -523,9 +527,11 @@ contains
     !
     allocate(l_field_sum(nthreads))
     allocate(l_field_norm(nthreads))
+    allocate(l_nan_count(nthreads))
     !
     l_field_sum(:) = 0.0_real32
     l_field_norm(:) = 0.0_real64
+    l_nan_count(:) = 0
     !
     !$omp parallel default(shared), private(df,th_idx)
     th_idx = omp_get_thread_num()+1
@@ -535,6 +541,8 @@ contains
               int(Z'7F800000', int32)) /= int(Z'7F800000', int32)) then
         l_field_sum(th_idx) = l_field_sum(th_idx) + field_proxy%data(df)
         l_field_norm(th_idx) = l_field_norm(th_idx) + field_proxy%data(df)*field_proxy%data(df)
+      else
+        l_nan_count = l_nan_count + 1
       end if
     end do
     !$omp end do
@@ -544,21 +552,29 @@ contains
     !
     field_sum = l_field_sum(1)
     field_norm = l_field_norm(1)
+    nan_count = l_nan_count(1)
+
     do th_idx=2,nthreads
       field_sum = field_sum + l_field_sum(th_idx)
       field_norm = field_norm + l_field_norm(th_idx)
+      nan_count = nan_count + l_nan_count(th_idx)
     end do
-    deallocate(l_field_sum, l_field_norm)
+    deallocate(l_field_sum, l_field_norm, l_nan_count)
     global_sum%value = field_sum
     global_norm%value = field_norm
+    global_nan_count%value = nan_count
     field_sum = global_sum%get_sum()
     field_norm = SQRT(MAX(global_norm%get_sum(), 0.0_real32))
+    ! Attempt to stop overflows as global NaN count may be bigger than can be
+    ! stored in a 32-bit integer (but 64-bit integers haven't been implemented)
+    nan_count = MIN(global_nan_count%get_sum(), huge(nan_count))
     !
   end subroutine invoke_real32_field_sum_norm
 
-  subroutine invoke_real64_field_sum_norm(field_sum, field_norm, real64_field)
+  subroutine invoke_real64_field_sum_norm(field_sum, field_norm, nan_count, real64_field)
 
     use scalar_real64_mod,  only: scalar_real64_type
+    use scalar_int32_mod,   only: scalar_int32_type
     use omp_lib,            only: omp_get_thread_num
     use omp_lib,            only: omp_get_max_threads
     use field_real64_mod,   only: field_real64_type, &
@@ -566,18 +582,21 @@ contains
 
     implicit none
 
-    real(kind=real64),               intent(out) :: field_sum
-    real(kind=real64),               intent(out) :: field_norm
-    type(field_real64_type),          intent(in) :: real64_field
-    type(scalar_real64_type)                     :: global_sum, global_norm
-    integer(kind=i_def)                          :: df
-    real(kind=real64), allocatable, dimension(:) :: l_field_sum
-    real(kind=real64), allocatable, dimension(:) :: l_field_norm
-    integer(kind=i_def)                          :: th_idx
-    integer(kind=i_def)                          :: loop0_start
-    integer(kind=i_def)                          :: loop0_stop
-    integer(kind=i_def)                          :: nthreads
-    type(field_real64_proxy_type)                :: field_proxy
+    real(kind=real64),                 intent(out) :: field_sum
+    real(kind=real64),                 intent(out) :: field_norm
+    integer(kind=i_def),              intent(out)  :: nan_count
+    type(field_real64_type),            intent(in) :: real64_field
+    type(scalar_real64_type)                       :: global_sum, global_norm
+    type(scalar_int32_type)                        :: global_nan_count
+    integer(kind=i_def)                            :: df
+    real(kind=real64),   allocatable, dimension(:) :: l_field_sum
+    real(kind=real64),   allocatable, dimension(:) :: l_field_norm
+    integer(kind=i_def), allocatable, dimension(:) :: l_nan_count
+    integer(kind=i_def)                            :: th_idx
+    integer(kind=i_def)                            :: loop0_start
+    integer(kind=i_def)                            :: loop0_stop
+    integer(kind=i_def)                            :: nthreads
+    type(field_real64_proxy_type)                  :: field_proxy
     !
     ! Determine the number of OpenMP threads
     !
@@ -596,9 +615,11 @@ contains
     !
     allocate(l_field_sum(nthreads))
     allocate(l_field_norm(nthreads))
+    allocate(l_nan_count(nthreads))
     !
     l_field_sum(:) = 0.0_real64
     l_field_norm(:) = 0.0_real64
+    l_nan_count(:) = 0
     !
     !$omp parallel default(shared), private(df,th_idx)
     th_idx = omp_get_thread_num()+1
@@ -608,6 +629,8 @@ contains
               int(Z'7FF0000000000000', int64)) /= int(Z'7FF0000000000000', int64)) then
         l_field_sum(th_idx) = l_field_sum(th_idx) + field_proxy%data(df)
         l_field_norm(th_idx) = l_field_norm(th_idx) + field_proxy%data(df)*field_proxy%data(df)
+      else
+        l_nan_count = l_nan_count + 1
       end if
     end do
     !$omp end do
@@ -617,15 +640,21 @@ contains
     !
     field_sum = l_field_sum(1)
     field_norm = l_field_norm(1)
+    nan_count = l_nan_count(1)
+
     do th_idx=2,nthreads
       field_sum = field_sum + l_field_sum(th_idx)
       field_norm = field_norm + l_field_norm(th_idx)
+      nan_count = nan_count + l_nan_count(th_idx)
     end do
-    deallocate(l_field_sum, l_field_norm)
+    deallocate(l_field_sum, l_field_norm, l_nan_count)
     global_sum%value = field_sum
     global_norm%value = field_norm
     field_sum = global_sum%get_sum()
     field_norm = SQRT(MAX(global_norm%get_sum(), 0.0_real64))
+    ! Attempt to stop overflows as global NaN count may be bigger than can be
+    ! stored in a 32-bit integer (but 64-bit integers haven't been implemented)
+    nan_count = MIN(global_nan_count%get_sum(), huge(nan_count))
     !
   end subroutine invoke_real64_field_sum_norm
 

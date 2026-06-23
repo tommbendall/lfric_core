@@ -135,26 +135,30 @@ contains
   !> @param[in] field The field for which the min and max are required
   !> @param[out] fsum The sum of the field
   !> @param[out] fnorm The L2 norm of the field data
-  subroutine get_field_sum_norm_real32( field, fsum, fnorm )
+  !> @param[out] fnan_count The number of NaN values in the field
+  subroutine get_field_sum_norm_real32( field, fsum, fnorm, fnan_count )
     implicit none
     type(field_real32_type), intent(in) :: field
     real(kind=real32),      intent(out) :: fsum, fnorm
+    integer(kind=i_def),    intent(out) :: fnan_count
 
     ! call the invoke in the PSy layer
-    call invoke_real32_field_sum_norm( fsum, fnorm, field )
+    call invoke_real32_field_sum_norm( fsum, fnorm, fnan_count, field )
   end subroutine get_field_sum_norm_real32
 
   !> Returns sum and norm of the data values of a field
   !> @param[in] field The field for which the min and max are required
   !> @param[out] fsum The sum of the field
   !> @param[out] fnorm The L2 norm of the field data
-  subroutine get_field_sum_norm_real64( field, fsum, fnorm )
+  !> @param[out] fnan_count The number of NaN values in the field
+  subroutine get_field_sum_norm_real64( field, fsum, fnorm, fnan_count )
     implicit none
     type(field_real64_type), intent(in) :: field
     real(kind=real64),      intent(out) :: fsum, fnorm
+    integer(kind=i_def),    intent(out) :: fnan_count
 
     ! call the invoke in the psy layer
-    call invoke_real64_field_sum_norm( fsum, fnorm, field )
+    call invoke_real64_field_sum_norm( fsum, fnorm, fnan_count, field )
   end subroutine get_field_sum_norm_real64
 
   !> Logs the minimum and maximum values of a field to the log
@@ -167,6 +171,7 @@ contains
     type(field_real32_type),     intent(in) :: field
     real(kind=real32)                       :: fmin, fmax
     real(kind=real32)                       :: fsum, fnorm
+    integer(kind=i_def)                     :: fnan_count
 
     ! If we aren't going to log the min and max then we don't need to
     ! do any further work here.
@@ -176,9 +181,9 @@ contains
     call invoke_real32_field_min_max( fmin, fmax, field )
 
     if (log_sums_and_norms) then
-      call invoke_real32_field_sum_norm( fsum, fnorm, field )
-      write( log_scratch_space, '( A, A, A, 4E16.8 )' ) &
-            "Min/max/sum/norm ", trim(label), " = ", fmin, fmax, fsum, fnorm
+      call invoke_real32_field_sum_norm( fsum, fnorm, fnan_count, field )
+      write( log_scratch_space, '( A, A, A, 4E16.8, I32 )' ) &
+            "Min/max/sum/norm/NumNaN ", trim(label), " = ", fmin, fmax, fsum, fnorm, fnan_count
     else
       write( log_scratch_space, '( A, A, A, 2E16.8 )' ) &
             "Min/max ", trim(label), " = ", fmin, fmax
@@ -197,6 +202,7 @@ contains
     type(field_real64_type),     intent(in) :: field
     real(kind=real64)                       :: fmin, fmax
     real(kind=real64)                       :: fsum, fnorm
+    integer(kind=i_def)                     :: fnan_count
 
     ! If we aren't going to log the min and max then we don't need to
     ! do any further work here.
@@ -206,9 +212,9 @@ contains
     call invoke_real64_field_min_max( fmin, fmax, field )
 
     if (log_sums_and_norms) then
-      call invoke_real64_field_sum_norm( fsum, fnorm, field )
-      write( log_scratch_space, '( A, A, A, 4E32.16 )' ) &
-            "Min/max/sum/norm ", trim(label), " = ", fmin, fmax, fsum, fnorm
+      call invoke_real64_field_sum_norm( fsum, fnorm, fnan_count, field )
+      write( log_scratch_space, '( A, A, A, 4E32.16, I32 )' ) &
+            "Min/max/sum/norm/NumNaN ", trim(label), " = ", fmin, fmax, fsum, fnorm, fnan_count
     else
       write( log_scratch_space, '( A, A, A, 2E32.16 )' ) &
             "Min/max ", trim(label), " = ", fmin, fmax
