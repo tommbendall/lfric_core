@@ -147,7 +147,7 @@ contains
       ! Create a mesh object
       !
       mesh => field_proxy%vspace%get_mesh()
-      max_halo_depth_mesh = mesh%get_halo_depth()
+      max_halo_depth_mesh = mesh%get_halo_depth() - 1
       !
       ! Set-up all of the loop bounds
       !
@@ -222,7 +222,7 @@ contains
       ! Create a mesh object
       !
       mesh => field1_proxy%vspace%get_mesh()
-      max_halo_depth_mesh = mesh%get_halo_depth()
+      max_halo_depth_mesh = mesh%get_halo_depth() - 1
       !
       ! Set-up all of the loop bounds
       !
@@ -283,7 +283,7 @@ contains
       ! Create a mesh object
       !
       mesh => X_proxy%vspace%get_mesh()
-      max_halo_depth_mesh = mesh%get_halo_depth()
+      max_halo_depth_mesh = mesh%get_halo_depth() - 1
       !
       ! Set-up all of the loop bounds
       !
@@ -366,9 +366,9 @@ contains
       ! Look-up mesh objects and loop limits for inter-grid kernels
       !
       mesh_dummy_fine => dummy_fine_proxy%vspace%get_mesh()
-      max_halo_depth_mesh_dummy_fine = mesh_dummy_fine%get_halo_depth()
+      max_halo_depth_mesh_dummy_fine = mesh_dummy_fine%get_halo_depth() - 1
       mesh_dummy_coarse => dummy_coarse_proxy%vspace%get_mesh()
-      max_halo_depth_mesh_dummy_coarse = mesh_dummy_coarse%get_halo_depth()
+      max_halo_depth_mesh_dummy_coarse = mesh_dummy_coarse%get_halo_depth() - 1
       mmap_dummy_fine_dummy_coarse => mesh_dummy_coarse%get_mesh_map(mesh_dummy_fine)
       cell_map_dummy_coarse => mmap_dummy_fine_dummy_coarse%get_whole_cell_map()
       ncell_dummy_fine = mesh_dummy_fine%get_last_halo_cell(depth=2)
@@ -486,9 +486,9 @@ contains
       ! Look-up mesh objects and loop limits for inter-grid kernels
       !
       mesh_fine_field => fine_field_proxy%vspace%get_mesh()
-      max_halo_depth_mesh_fine_field = mesh_fine_field%get_halo_depth()
+      max_halo_depth_mesh_fine_field = mesh_fine_field%get_halo_depth() - 1
       mesh_coarse_field => coarse_field_proxy%vspace%get_mesh()
-      max_halo_depth_mesh_coarse_field = mesh_coarse_field%get_halo_depth()
+      max_halo_depth_mesh_coarse_field = mesh_coarse_field%get_halo_depth() - 1
       mmap_fine_field_coarse_field => mesh_coarse_field%get_mesh_map(mesh_fine_field)
       cell_map_coarse_field => mmap_fine_field_coarse_field%get_whole_cell_map()
       ncell_fine_field = mesh_fine_field%get_last_halo_cell(depth=2)
@@ -584,9 +584,9 @@ contains
       ! Look-up mesh objects and loop limits for inter-grid kernels
       !
       mesh_fine_field => fine_field_proxy%vspace%get_mesh()
-      max_halo_depth_mesh_fine_field = mesh_fine_field%get_halo_depth()
+      max_halo_depth_mesh_fine_field = mesh_fine_field%get_halo_depth() - 1
       mesh_coarse_field => coarse_field_proxy%vspace%get_mesh()
-      max_halo_depth_mesh_coarse_field = mesh_coarse_field%get_halo_depth()
+      max_halo_depth_mesh_coarse_field = mesh_coarse_field%get_halo_depth() - 1
       mmap_fine_field_coarse_field => mesh_coarse_field%get_mesh_map(mesh_fine_field)
       cell_map_coarse_field => mmap_fine_field_coarse_field%get_whole_cell_map()
       ncell_fine_field = mesh_fine_field%get_last_halo_cell(depth=2)
@@ -693,9 +693,9 @@ contains
     ! Look-up mesh objects and loop limits for inter-grid kernels
     !
     mesh_dummy_fine => dummy_fine_proxy%vspace%get_mesh()
-    max_halo_depth_mesh_dummy_fine = mesh_dummy_fine%get_halo_depth()
+    max_halo_depth_mesh_dummy_fine = mesh_dummy_fine%get_halo_depth() - 1
     mesh_dummy_coarse => dummy_coarse_proxy%vspace%get_mesh()
-    max_halo_depth_mesh_dummy_coarse = mesh_dummy_coarse%get_halo_depth()
+    max_halo_depth_mesh_dummy_coarse = mesh_dummy_coarse%get_halo_depth() - 1
     mmap_dummy_fine_dummy_coarse => mesh_dummy_coarse%get_mesh_map(mesh_dummy_fine)
     cell_map_dummy_coarse => mmap_dummy_fine_dummy_coarse%get_whole_cell_map()
     ncell_dummy_fine = mesh_dummy_fine%get_last_halo_cell(depth=2)
@@ -822,9 +822,9 @@ contains
       ! Look-up mesh objects and loop limits for inter-grid kernels
       !
       mesh_source_field => source_field_proxy%vspace%get_mesh()
-      max_halo_depth_mesh_source_field = mesh_source_field%get_halo_depth()
+      max_halo_depth_mesh_source_field = mesh_source_field%get_halo_depth() - 1
       mesh_target_field => target_field_proxy%vspace%get_mesh()
-      max_halo_depth_mesh_target_field = mesh_target_field%get_halo_depth()
+      max_halo_depth_mesh_target_field = mesh_target_field%get_halo_depth() - 1
       mmap_source_field_target_field => mesh_target_field%get_mesh_map(mesh_source_field)
       cell_map_target_field => mmap_source_field_target_field%get_whole_cell_map()
       ncell_source_field = mesh_source_field%get_last_halo_cell(depth=2)
@@ -933,9 +933,9 @@ contains
       ! Look-up mesh objects and loop limits for inter-grid kernels
       !
       mesh_target_field => target_field_proxy%vspace%get_mesh()
-      max_halo_depth_mesh_target_field = mesh_target_field%get_halo_depth()
+      max_halo_depth_mesh_target_field = mesh_target_field%get_halo_depth() - 1
       mesh_source_field => source_field_proxy%vspace%get_mesh()
-      max_halo_depth_mesh_source_field = mesh_source_field%get_halo_depth()
+      max_halo_depth_mesh_source_field = mesh_source_field%get_halo_depth() - 1
       mmap_target_field_source_field => mesh_source_field%get_mesh_map(mesh_target_field)
       cell_map_source_field => mmap_target_field_source_field%get_whole_cell_map()
       ncell_target_field = mesh_target_field%get_last_halo_cell(depth=2)

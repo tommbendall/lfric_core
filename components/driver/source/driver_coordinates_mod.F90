@@ -306,7 +306,7 @@ contains
     ! mark their halos as clean, out to the full halo depth
     ! This is necessary so that subsequent kernel calls don't try to
     ! halo_swap the Wchi field which is read-only
-    depth = mesh%get_halo_depth()
+    depth = mesh%get_halo_depth() - 1
     call chi_proxy(1)%set_clean(depth)
     call chi_proxy(2)%set_clean(depth)
     call chi_proxy(3)%set_clean(depth)

@@ -606,7 +606,7 @@ contains
     allocate(processed_edges(last_owned_edge))
     processed_edges = 0
 
-    max_halo_depth_mesh = twod_mesh%get_halo_depth()
+    max_halo_depth_mesh = twod_mesh%get_halo_depth() - 1
     exch_depth = min(1,max_halo_depth_mesh)
 
     do df_x = 1, ndf_x

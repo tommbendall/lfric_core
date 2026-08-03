@@ -265,7 +265,7 @@ contains
     local_mesh => mesh%get_local_mesh()
     w2h_2d_fs => function_space_collection%get_fs(twod_mesh, 0, 0, W2H)
     w3_2d_fs => function_space_collection%get_fs(twod_mesh, 0, 0, W3)
-    max_halo_depth = twod_mesh%get_halo_depth()
+    max_halo_depth = twod_mesh%get_halo_depth() - 1
 
     ! Temporary W2H field, tracking the count for each face
     call face_counter%initialise(w2h_2d_fs, halo_depth=max_halo_depth)
@@ -415,7 +415,7 @@ contains
       if ( LPROF ) call start_timing( id, 'runtime_constants.geometric' )
 
       wchi_fs => chi(1)%get_function_space()
-      depth = mesh%get_halo_depth()
+      depth = mesh%get_halo_depth() - 1
       call extended_chi_inventory%add_field_array(                             &
               extended_chi, wchi_fs, 3, mesh, halo_depth=depth                 &
       )
@@ -894,7 +894,7 @@ contains
 
       if ( LPROF ) call start_timing( id, 'runtime_constants.geometric' )
 
-      depth = mesh%get_halo_depth()
+      depth = mesh%get_halo_depth() - 1
       call dx_at_w2_inventory%add_field(dx_at_w2, w2_fs, mesh, halo_depth=depth)
       call invoke( X_divideby_Y(dx_at_w2, detj_at_w2, dA_at_w2) )
 
@@ -1517,7 +1517,7 @@ contains
 
       if ( LPROF ) call start_timing( id, 'runtime_constants.geometric' )
 
-      depth = mesh%get_halo_depth()
+      depth = mesh%get_halo_depth() - 1
       space => function_space_collection%get_fs(mesh, 0, 0, space_id)
       call inventory%add_field(height, space, mesh, halo_depth=depth)
 

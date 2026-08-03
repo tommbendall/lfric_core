@@ -143,7 +143,7 @@ contains
         ! Initialise panel ID field object -------------------------------------
         twod_mesh => mesh_collection%get_mesh(mesh, twod)
         fs => function_space_collection%get_fs(twod_mesh, 0, 0, W3)
-        halo_depth = twod_mesh%get_halo_depth()
+        halo_depth = twod_mesh%get_halo_depth() - 1
         call panel_id%initialise(fs, halo_depth=halo_depth)
 
         ! Initialise chi field object ------------------------------------------
