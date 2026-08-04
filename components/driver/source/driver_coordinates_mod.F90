@@ -90,10 +90,10 @@ contains
     integer(i_def) :: nverts
 
     integer(i_def) :: alloc_error
-    integer(i_def) :: depth
 
     integer(i_def), allocatable :: global_dof_id(:)
     integer(i_def) :: panel_ncells
+    integer(i_def) :: chi_halo_depth
     integer(i_def) :: i
     type(local_mesh_type), pointer :: local_mesh
 
@@ -187,11 +187,12 @@ contains
     end if
 
     panel_id_proxy%data = 1.0_r_def
+    chi_halo_depth = chi(1)%get_field_halo_depth()
 
     if ( coord_system == coord_system_xyz .or. &
          geometry == geometry_planar ) then
 
-      do cell = 1,chi_proxy(1)%vspace%get_ncell()
+      do cell = 1, mesh%get_last_halo_cell(chi_halo_depth)
 
         call calc_panel_id( nlayers_pid,         &
                             ndf_pid, undf_pid,   &
@@ -230,7 +231,7 @@ contains
     else if ( geometry == geometry_spherical .and. &
               topology /= topology_fully_periodic ) then
 
-      do cell = 1,chi_proxy(1)%vspace%get_ncell()
+      do cell = 1, mesh%get_last_halo_cell(chi_halo_depth)
 
         call calc_panel_id( nlayers_pid,         &
                             ndf_pid, undf_pid,   &
@@ -265,7 +266,7 @@ contains
     else if ( geometry == geometry_spherical .and. &
               topology == topology_fully_periodic ) then
 
-      do cell = 1,chi_proxy(1)%vspace%get_ncell()
+      do cell = 1, mesh%get_last_halo_cell(chi_halo_depth)
 
         call calc_panel_id( nlayers_pid,         &
                             ndf_pid, undf_pid,   &
@@ -306,10 +307,9 @@ contains
     ! mark their halos as clean, out to the full halo depth
     ! This is necessary so that subsequent kernel calls don't try to
     ! halo_swap the Wchi field which is read-only
-    depth = mesh%get_halo_depth() - 1
-    call chi_proxy(1)%set_clean(depth)
-    call chi_proxy(2)%set_clean(depth)
-    call chi_proxy(3)%set_clean(depth)
+    call chi_proxy(1)%set_clean(chi_halo_depth)
+    call chi_proxy(2)%set_clean(chi_halo_depth)
+    call chi_proxy(3)%set_clean(chi_halo_depth)
 
     deallocate ( dz, column_coords, vertex_coords )
 
