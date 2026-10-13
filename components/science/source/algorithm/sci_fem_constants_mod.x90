@@ -208,9 +208,6 @@ contains
                                   only: compute_mass_matrix_kernel_w2_type
     use sci_compute_mass_matrix_kernel_w1_mod,       &
                                   only: compute_mass_matrix_kernel_w1_type
-    use sci_edge_lump_w2_mass_matrix_kernel_mod,     &
-                                  only: edge_lump_w2_mass_matrix_kernel_type
-    use base_mesh_config_mod,     only: topology, topology_fully_periodic
 
     implicit none
 
@@ -226,8 +223,6 @@ contains
     type(inventory_by_mesh_type), pointer :: inventory
     character(len=str_def)                :: inventory_name
     logical(kind=l_def),        parameter :: extend_mesh = .false.
-    type(field_type)                      :: dummy_field
-    integer(kind=i_def),        parameter :: stencil_depth = 1_i_def
     integer(tik)                          :: id
 
     ! If running at lowest order, use finite volume
@@ -298,14 +293,6 @@ contains
                                                                 extend_mesh,   &
                                                                 qr_ptr) )
       end select
-      ! Lump W2 mass matrix along the edge of the domain to avoid boundary
-      ! errors propagating into the domain with each iteration
-      if ( (space == W2 .or. space == W2h) .and. topology /= topology_fully_periodic ) then
-        call dummy_field%initialise( fs, halo_depth=2 )
-        call invoke( edge_lump_w2_mass_matrix_kernel_type(mm_op,        &
-                                                          dummy_field,  &
-                                                          stencil_depth) )
-      end if
 
       if ( LPROF ) call stop_timing( id, 'runtime_constants.fem' )
     end if
@@ -327,9 +314,6 @@ contains
                                   only: compute_mass_matrix_kernel_w2_type
     use sci_compute_mass_matrix_kernel_w1_mod,       &
                                   only: compute_mass_matrix_kernel_w1_type
-    use sci_edge_lump_w2_mass_matrix_kernel_mod,     &
-                                  only: edge_lump_w2_mass_matrix_kernel_type
-    use base_mesh_config_mod,     only: topology, topology_fully_periodic
 
     implicit none
 
@@ -345,8 +329,6 @@ contains
     type(inventory_by_mesh_type), pointer :: inventory
     character(len=str_def)                :: inventory_name
     logical(kind=l_def),        parameter :: extend_mesh = .false.
-    type(field_type)                      :: dummy_field
-    integer(kind=i_def),        parameter :: stencil_depth = 1_i_def
     integer(tik)                          :: id
 
     ! Point to appropriate inventory for this space
@@ -410,14 +392,6 @@ contains
                                                                 extend_mesh,   &
                                                                 qr_ptr) )
       end select
-      ! Lump W2 mass matrix along the edge of the domain to avoid boundary
-      ! errors propagating into the domain with each iteration
-      if ( (space == W2 .or. space == W2h) .and. topology /= topology_fully_periodic ) then
-        call dummy_field%initialise( fs, halo_depth=2 )
-        call invoke( edge_lump_w2_mass_matrix_kernel_type(mm_op,        &
-                                                          dummy_field,  &
-                                                          stencil_depth) )
-      end if
 
       if ( LPROF ) call stop_timing( id, 'runtime_constants.fem' )
     end if
