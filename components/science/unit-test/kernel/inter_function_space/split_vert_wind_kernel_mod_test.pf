@@ -1,0 +1,222 @@
+!-------------------------------------------------------------------------------
+! (C) Crown copyright Met Office. All rights reserved.
+! The file LICENCE, distributed with this code, contains details of the terms
+! under which the code may be used.
+!-------------------------------------------------------------------------------
+! Some of the content of this file has been produced with the assistance of
+! Met Office Github Copilot Enterprise
+!-------------------------------------------------------------------------------
+
+! Test the calculation of the true vertical wind from W2 fluxes. The mesh is
+! a single column of lowest-order cells with a uniform slope in x and y.
+module split_vert_wind_kernel_mod_test
+
+  use, intrinsic :: iso_fortran_env, only : real64
+  use constants_mod, only : i_def, r_def
+  use funit
+
+  implicit none
+
+  private
+  public :: test_known_values, test_uniform_wind
+
+  ! Reference element dof numbering for W2 at lowest order
+  integer(kind=i_def), parameter :: W = 1
+  integer(kind=i_def), parameter :: S = 2
+  integer(kind=i_def), parameter :: E = 3
+  integer(kind=i_def), parameter :: N = 4
+  integer(kind=i_def), parameter :: B = 5
+
+  ! A single column of layers
+  integer(kind=i_def), parameter :: nlayers = 3
+  integer(kind=i_def), parameter :: ndf_w2v = 2
+  integer(kind=i_def), parameter :: undf_w2v = nlayers + 1
+  integer(kind=i_def), parameter :: ndf_w2h = 4
+  integer(kind=i_def), parameter :: undf_w2h = 4*nlayers
+  integer(kind=i_def), parameter :: ndf_w2 = 6
+  integer(kind=i_def), parameter :: undf_w2 = 5*nlayers + 1
+  integer(kind=i_def), parameter :: map_w2v(ndf_w2v) = [1, 2]
+  integer(kind=i_def), parameter :: map_w2h(ndf_w2h) = [1, 4, 7, 10]
+  integer(kind=i_def), parameter :: map_w2(ndf_w2) = [1, 4, 7, 10, 13, 14]
+
+  ! Cell dimensions and slopes (the chi coordinates are an affine map)
+  real(kind=r_def), parameter :: dx = 4.0_r_def
+  real(kind=r_def), parameter :: dy = 7.0_r_def
+  real(kind=r_def), parameter :: dz = 13.0_r_def
+  real(kind=r_def), parameter :: dzdx = 0.75_r_def
+  real(kind=r_def), parameter :: dzdy = -0.5_r_def
+  real(kind=r_def), parameter :: slope = sqrt(1.0_r_def + dzdx**2 + dzdy**2)
+
+contains
+
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  ! Face areas and slopes for the affine mesh
+  subroutine set_geometry(dA_at_w2, dz_dx, dz_dy, slope_factor)
+
+    implicit none
+
+    real(kind=r_def), intent(out) :: dA_at_w2(undf_w2)
+    real(kind=r_def), intent(out) :: dz_dx(undf_w2v)
+    real(kind=r_def), intent(out) :: dz_dy(undf_w2v)
+    real(kind=r_def), intent(out) :: slope_factor(undf_w2v)
+
+    integer(kind=i_def) :: k
+
+    dA_at_w2(:) = 0.0_r_def
+    do k = 0, nlayers-1
+      dA_at_w2(map_w2(W)+k) = dy * dz
+      dA_at_w2(map_w2(E)+k) = dy * dz
+      dA_at_w2(map_w2(S)+k) = dx * dz
+      dA_at_w2(map_w2(N)+k) = dx * dz
+    end do
+    do k = 0, nlayers
+      dA_at_w2(map_w2(B)+k) = dx * dy * slope
+    end do
+
+    dz_dx(:) = dzdx
+    dz_dy(:) = dzdy
+    slope_factor(:) = slope
+
+  end subroutine set_geometry
+
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  ! Fluxes through the vertical faces for a wind that is uniform in each layer
+  subroutine set_horizontal_fluxes(u_hori, u_layer, v_layer)
+
+    implicit none
+
+    real(kind=r_def), intent(out) :: u_hori(undf_w2h)
+    real(kind=r_def), intent(in)  :: u_layer(nlayers)
+    real(kind=r_def), intent(in)  :: v_layer(nlayers)
+
+    integer(kind=i_def) :: k
+
+    u_hori(:) = 0.0_r_def
+    do k = 0, nlayers-1
+      u_hori(map_w2h(W)+k) = u_layer(k+1) * dy * dz
+      u_hori(map_w2h(E)+k) = u_layer(k+1) * dy * dz
+      u_hori(map_w2h(S)+k) = v_layer(k+1) * dx * dz
+      u_hori(map_w2h(N)+k) = v_layer(k+1) * dx * dz
+    end do
+
+  end subroutine set_horizontal_fluxes
+
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  ! Horizontal wind varies between layers and the vertical flux is arbitrary,
+  ! so the averaging to each level is tested, including bottom and top
+  @Test
+  subroutine test_known_values()
+
+    use sci_split_vert_wind_kernel_mod, only : split_vert_wind_code
+
+    implicit none
+
+    real(kind=r_def) :: tol
+    real(kind=r_def) :: dA_at_w2(undf_w2)
+    real(kind=r_def) :: dz_dx(undf_w2v), dz_dy(undf_w2v)
+    real(kind=r_def) :: slope_factor(undf_w2v)
+    real(kind=r_def) :: u_hori(undf_w2h)
+    real(kind=r_def) :: w_flux(undf_w2v), w_vert(undf_w2v)
+    real(kind=r_def) :: u_layer(nlayers), v_layer(nlayers)
+    real(kind=r_def) :: u_bar(0:nlayers), v_bar(0:nlayers)
+    real(kind=r_def) :: expected
+    integer(kind=i_def) :: k
+
+    if (r_def == real64) then
+      tol = 1.0e-8_r_def
+    else
+      tol = 1.0e-5_r_def
+    end if
+
+    call set_geometry(dA_at_w2, dz_dx, dz_dy, slope_factor)
+
+    u_layer = [2.0_r_def, 3.5_r_def, 5.0_r_def]
+    v_layer = [-1.0_r_def, -0.5_r_def, 0.0_r_def]
+    call set_horizontal_fluxes(u_hori, u_layer, v_layer)
+
+    do k = 0, nlayers
+      w_flux(map_w2v(1)+k) = 10.0_r_def - 3.0_r_def * real(k, r_def)
+    end do
+    w_vert(:) = 0.0_r_def
+
+    call split_vert_wind_code(nlayers,                                         &
+                              w_vert, u_hori, w_flux, dA_at_w2,                &
+                              dz_dx, dz_dy, slope_factor,                      &
+                              ndf_w2v, undf_w2v, map_w2v,                      &
+                              ndf_w2h, undf_w2h, map_w2h,                      &
+                              ndf_w2, undf_w2, map_w2)
+
+    ! Averages to each level; one-sided at the bottom and top of the column
+    u_bar(0) = u_layer(1)
+    v_bar(0) = v_layer(1)
+    u_bar(1) = 0.5_r_def * (u_layer(1) + u_layer(2))
+    v_bar(1) = 0.5_r_def * (v_layer(1) + v_layer(2))
+    u_bar(2) = 0.5_r_def * (u_layer(2) + u_layer(3))
+    v_bar(2) = 0.5_r_def * (v_layer(2) + v_layer(3))
+    u_bar(3) = u_layer(3)
+    v_bar(3) = v_layer(3)
+
+    ! The sloped face area is dx * dy * slope, so flux / area * slope is
+    ! flux / (dx * dy)
+    do k = 0, nlayers
+      expected = w_flux(map_w2v(1)+k) / (dx * dy)                              &
+                 + dzdx * u_bar(k) + dzdy * v_bar(k)
+      @assertEqual(expected, w_vert(map_w2v(1)+k), tol)
+    end do
+
+  end subroutine test_known_values
+
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  ! Fluxes built from a uniform wind (u, v, w) must give back w at every level
+  @Test
+  subroutine test_uniform_wind()
+
+    use sci_split_vert_wind_kernel_mod, only : split_vert_wind_code
+
+    implicit none
+
+    real(kind=r_def), parameter :: u_wind = 3.0_r_def
+    real(kind=r_def), parameter :: v_wind = -2.0_r_def
+    real(kind=r_def), parameter :: w_wind = 1.5_r_def
+
+    real(kind=r_def) :: tol
+    real(kind=r_def) :: dA_at_w2(undf_w2)
+    real(kind=r_def) :: dz_dx(undf_w2v), dz_dy(undf_w2v)
+    real(kind=r_def) :: slope_factor(undf_w2v)
+    real(kind=r_def) :: u_hori(undf_w2h)
+    real(kind=r_def) :: w_flux(undf_w2v), w_vert(undf_w2v)
+    real(kind=r_def) :: u_layer(nlayers), v_layer(nlayers)
+    integer(kind=i_def) :: k
+
+    if (r_def == real64) then
+      tol = 1.0e-8_r_def
+    else
+      tol = 1.0e-5_r_def
+    end if
+
+    call set_geometry(dA_at_w2, dz_dx, dz_dy, slope_factor)
+
+    u_layer(:) = u_wind
+    v_layer(:) = v_wind
+    call set_horizontal_fluxes(u_hori, u_layer, v_layer)
+
+    ! Flux through a coordinate surface that follows the slope
+    do k = 0, nlayers
+      w_flux(map_w2v(1)+k) = (w_wind - dzdx * u_wind - dzdy * v_wind) * dx * dy
+    end do
+    w_vert(:) = 0.0_r_def
+
+    call split_vert_wind_code(nlayers,                                         &
+                              w_vert, u_hori, w_flux, dA_at_w2,                &
+                              dz_dx, dz_dy, slope_factor,                      &
+                              ndf_w2v, undf_w2v, map_w2v,                      &
+                              ndf_w2h, undf_w2h, map_w2h,                      &
+                              ndf_w2, undf_w2, map_w2)
+
+    do k = 0, nlayers
+      @assertEqual(w_wind, w_vert(map_w2v(1)+k), tol)
+    end do
+
+  end subroutine test_uniform_wind
+
+end module split_vert_wind_kernel_mod_test

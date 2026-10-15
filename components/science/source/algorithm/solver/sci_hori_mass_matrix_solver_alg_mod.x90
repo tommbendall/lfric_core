@@ -6,18 +6,23 @@
 
 !> @brief   Mass matrix solver on the horizontal component of a W2 field.
 !> @details Applies the mass matrix solver only to the horizontal component
-!!          of a W2 field. The "solved" vertical component can either be
-!!          an input or left as zero.
+!!          of a W2 field. The "solved" vertical component can be taken from
+!!          vert_field_solve (a W2 field), from w2v_field_solve (a W2v field
+!!          normal to the W2v faces) or left as zero. If preserve_vertical is
+!!          true, the vertical component is the true vertical wind (accounting
+!!          for orography) rather than the component normal to the W2v faces,
+!!          and w2v_field_solve cannot be used.
 
 module sci_hori_mass_matrix_solver_alg_mod
 
   ! Constants and types
-  use constants_mod,                  only: i_def
+  use constants_mod,                  only: i_def, l_def, r_def
   use integer_field_mod,              only: integer_field_type
   use field_mod,                      only: field_type
   use fs_continuity_mod,              only: W2, W2h, W2v
   use function_space_mod,             only: function_space_type
   use function_space_collection_mod,  only: function_space_collection
+  use log_mod,                        only: log_event, LOG_LEVEL_ERROR
   use sci_geometric_constants_mod,    only: get_face_selector_ew, &
                                             get_face_selector_ns
 
@@ -35,28 +40,51 @@ contains
 
   ! =======================================================
   !> @brief Mass matrix solver for only the horizontal component of a W2 field
-  !> @param[in,out] field_solve      The W2 solved field
-  !> @param[in]     field            The W2 field to apply the horizontal mass
-  !!                                 matrix solve
-  !> @param[in]     vert_field_solve The optional solved vertical field. If
-  !!                                 not inputted then the vertical solved
-  !!                                 component is set to zero
+  !> @param[in,out] field_solve        The W2 solved field
+  !> @param[in]     field              The W2 field to apply the horizontal
+  !!                                   mass matrix solve
+  !> @param[in]     preserve_vertical  Preserve the true vertical wind
+  !> @param[in]     vert_field_solve   Optional W2 field for the vertical part
+  !> @param[in]     w2v_field_solve    Optional W2v field for vertical part
 
-  subroutine hori_mass_matrix_solver_alg( field_solve, field, vert_field_solve )
+  subroutine hori_mass_matrix_solver_alg( field_solve, field,                  &
+                                          preserve_vertical,                   &
+                                          vert_field_solve,                    &
+                                          w2v_field_solve )
 
     implicit none
 
     ! Arguments
-    type(field_type), intent(inout)        :: field_solve
-    type(field_type), intent(in)           :: field
-    type(field_type), intent(in), optional :: vert_field_solve
+    type(field_type),    intent(inout)        :: field_solve
+    type(field_type),    intent(in)           :: field
+    logical(kind=l_def), intent(in)           :: preserve_vertical
+    type(field_type),    intent(in), optional :: vert_field_solve
+    type(field_type),    intent(in), optional :: w2v_field_solve
 
     ! Function spaces and fields
     type(function_space_type), pointer :: w2h_fs, w2v_fs
     type(field_type)                   :: hori_field, hori_part, hori_field_solve
-    type(field_type)                   :: vert_field, vert_part
+    type(field_type)                   :: w2v_field_tmp, w2v_part, vert_part
     integer(i_def) :: element_order_h
     integer(i_def) :: element_order_v
+
+    ! Check the optional inputs
+    if (present(w2v_field_solve) .and. present(vert_field_solve)) then
+      call log_event( "hori_mass_matrix_solver_alg: only one of " //           &
+                      "vert_field_solve and w2v_field_solve can be used",      &
+                      LOG_LEVEL_ERROR )
+    end if
+    if (preserve_vertical .and. present(w2v_field_solve)) then
+      call log_event( "hori_mass_matrix_solver_alg: w2v_field_solve " //       &
+                      "cannot be used with preserve_vertical",                 &
+                      LOG_LEVEL_ERROR )
+    end if
+    if (present(vert_field_solve)) then
+      if (vert_field_solve%which_function_space() /= W2) then
+        call log_event( "hori_mass_matrix_solver_alg: vert_field_solve " //    &
+                        "must be a W2 field", LOG_LEVEL_ERROR )
+      end if
+    end if
 
     ! Get element order
     element_order_h = field%get_element_order_h()
@@ -71,31 +99,47 @@ contains
     ! Initialise fields
     call hori_field%initialise(w2h_fs)
     call hori_field_solve%initialise(w2h_fs)
-    call vert_field%initialise(w2v_fs)
+    call w2v_field_tmp%initialise(w2v_fs)
 
-    ! Take horizontal part of field
-    call split_w2_field_alg( hori_field, vert_field, field )
+    ! Take horizontal part of field, the vertical part is not used here
+    call split_w2_field_alg( hori_field, field, w2v_field=w2v_field_tmp )
     ! Mass matrix solve of horizontal part
     call mass_matrix_solver_alg(hori_field_solve, hori_field)
 
     ! Convert to W2 field
-    if (present(vert_field_solve)) then
-      ! Combine solved horizontal part with inputted solved vertical part
-      if ( vert_field_solve%which_function_space() == W2v ) then
-        ! Already inputted vertical solved part
-        call combine_w2_field_alg( field_solve, hori_field_solve, vert_field_solve )
-      else
-        ! It is a W2 field and must be split up
-        call hori_part%initialise(w2h_fs)
+    if (present(w2v_field_solve)) then
+      ! Combine solved horizontal part with the inputted W2v field
+      call combine_w2_field_alg( field_solve, hori_field_solve,                &
+                                 w2v_field=w2v_field_solve )
+    else if (present(vert_field_solve)) then
+      ! Combine solved horizontal part with the vertical part of a W2 field
+      call hori_part%initialise(w2h_fs)
+      if (preserve_vertical) then
         call vert_part%initialise(w2v_fs)
-        call split_w2_field_alg( hori_part, vert_part, vert_field_solve )
-        call combine_w2_field_alg( field_solve, hori_field_solve, vert_part )
+        call split_w2_field_alg( hori_part, vert_field_solve,                  &
+                                 vert_field=vert_part )
+        call combine_w2_field_alg( field_solve, hori_field_solve,              &
+                                   vert_field=vert_part )
+      else
+        call w2v_part%initialise(w2v_fs)
+        call split_w2_field_alg( hori_part, vert_field_solve,                  &
+                                 w2v_field=w2v_part )
+        call combine_w2_field_alg( field_solve, hori_field_solve,              &
+                                   w2v_field=w2v_part )
       end if
     else
       ! Set solved vertical part to zero
-      call vert_part%initialise(w2v_fs)
-      call invoke( setval_c(vert_part, 0.0_r_def))
-      call combine_w2_field_alg( field_solve, hori_field_solve, vert_part )
+      if (preserve_vertical) then
+        call vert_part%initialise(w2v_fs)
+        call invoke( setval_c(vert_part, 0.0_r_def))
+        call combine_w2_field_alg( field_solve, hori_field_solve,              &
+                                   vert_field=vert_part )
+      else
+        call w2v_part%initialise(w2v_fs)
+        call invoke( setval_c(w2v_part, 0.0_r_def))
+        call combine_w2_field_alg( field_solve, hori_field_solve,              &
+                                   w2v_field=w2v_part )
+      end if
     end if
 
   end subroutine hori_mass_matrix_solver_alg

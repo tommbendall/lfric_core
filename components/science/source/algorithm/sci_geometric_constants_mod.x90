@@ -18,7 +18,7 @@ module sci_geometric_constants_mod
   use constants_mod,                      only: i_def, r_def, l_def, str_def
   use extrusion_mod,                      only: TWOD, PRIME_EXTRUSION
   use field_mod,                          only: field_type
-  use fs_continuity_mod,                  only: W0, W1, W2, W2H, W3, Wtheta
+  use fs_continuity_mod,                  only: W0, W1, W2, W2H, W2V, W3, Wtheta
   use function_space_collection_mod,      only: function_space_collection
   use function_space_mod,                 only: function_space_type
   use integer_field_mod,                  only: integer_field_type
@@ -61,6 +61,9 @@ module sci_geometric_constants_mod
   type(inventory_by_mesh_type)               :: dx_at_w2_inventory
   type(inventory_by_mesh_type)               :: dz_at_wtheta_inventory
   type(inventory_by_local_mesh_type)         :: dA_msl_proj_inventory
+  type(inventory_by_mesh_type)               :: dz_dx_at_w2v_inventory
+  type(inventory_by_mesh_type)               :: dz_dy_at_w2v_inventory
+  type(inventory_by_mesh_type)               :: slope_factor_at_w2v_inventory
 
   ! 2D Longitude/latitude fields
   type(inventory_by_local_mesh_type), target :: lat_w3_inventory_fe
@@ -112,6 +115,9 @@ module sci_geometric_constants_mod
   public :: get_dx_at_w2
   public :: get_dz_at_wtheta
   public :: get_dA_msl_proj
+  public :: get_dz_dx_at_w2v
+  public :: get_dz_dy_at_w2v
+  public :: get_slope_factor_at_w2v
   public :: get_height_fe
   public :: get_height_fv
   public :: get_latitude_fe
@@ -126,6 +132,7 @@ module sci_geometric_constants_mod
   ! Private routines for creating constants
   private :: compute_latlon
   private :: compute_face_selectors
+  private :: compute_slopes_at_w2v
 
 contains
 
@@ -253,6 +260,50 @@ contains
     if ( LPROF ) call stop_timing( id, 'runtime_constants.geometric' )
 
   end subroutine compute_face_selectors
+
+  !> @brief Private routine for computing the slopes and slope factor at
+  !!        lowest-order W2v DoF locations
+  !> @param[in] mesh_id   The ID of the mesh to compute the fields for
+  subroutine compute_slopes_at_w2v(mesh_id)
+
+    use base_mesh_config_mod,               only: geometry, topology
+    use finite_element_config_mod,          only: coord_system
+    use planet_config_mod,                  only: scaled_radius
+    use sci_calc_slopes_at_w2v_kernel_mod,  only: calc_slopes_at_w2v_kernel_type
+
+    implicit none
+
+    integer(kind=i_def),       intent(in) :: mesh_id
+
+    ! Internal variables
+    type(mesh_type),           pointer :: mesh
+    type(field_type),          pointer :: dz_dx
+    type(field_type),          pointer :: dz_dy
+    type(field_type),          pointer :: slope_factor
+    type(field_type),          pointer :: chi(:)
+    type(field_type),          pointer :: panel_id
+    type(function_space_type), pointer :: w2v_k0_fs
+    integer(tik)                       :: id
+
+    mesh => mesh_collection%get_mesh(mesh_id)
+    chi => get_coordinates(mesh_id)
+    panel_id => get_panel_id(mesh_id)
+
+    if ( LPROF ) call start_timing( id, 'runtime_constants.geometric' )
+
+    w2v_k0_fs => function_space_collection%get_fs(mesh, 0, 0, W2V)
+    call dz_dx_at_w2v_inventory%add_field(dz_dx, w2v_k0_fs, mesh)
+    call dz_dy_at_w2v_inventory%add_field(dz_dy, w2v_k0_fs, mesh)
+    call slope_factor_at_w2v_inventory%add_field(slope_factor, w2v_k0_fs, mesh)
+
+    call invoke( calc_slopes_at_w2v_kernel_type(dz_dx, dz_dy, slope_factor,    &
+                                                chi, panel_id,                 &
+                                                coord_system, geometry,        &
+                                                topology, scaled_radius) )
+
+    if ( LPROF ) call stop_timing( id, 'runtime_constants.geometric' )
+
+  end subroutine compute_slopes_at_w2v
 
   ! ========================================================================== !
   ! GETTERS FOR FINITE ELEMENT COORDINATE FIELDS
@@ -923,6 +974,96 @@ contains
 
   end function get_dA_msl_proj
 
+  !> @brief Returns the slope of the cell faces in the first horizontal
+  !!        direction at lowest-order W2v DoF locations
+  !> @param[in] mesh_id The ID of the mesh to get the object for
+  !> @return The dz_dx_at_w2v field
+  function get_dz_dx_at_w2v(mesh_id) result(dz_dx_at_w2v)
+
+    implicit none
+
+    integer(kind=i_def),    intent(in) :: mesh_id
+    type(mesh_type),           pointer :: mesh
+    type(field_type),          pointer :: dz_dx_at_w2v
+    logical(kind=l_def)                :: constant_exists
+
+    ! The slopes and slope factor are always computed together
+    if (.not. dz_dx_at_w2v_inventory%is_initialised()) then
+      call dz_dx_at_w2v_inventory%initialise(name="dz_dx_at_w2v")
+      call dz_dy_at_w2v_inventory%initialise(name="dz_dy_at_w2v")
+      call slope_factor_at_w2v_inventory%initialise(                           &
+              name="slope_factor_at_w2v"                                       &
+      )
+    end if
+
+    mesh => mesh_collection%get_mesh(mesh_id)
+    constant_exists = dz_dx_at_w2v_inventory%paired_object_exists(mesh_id)
+    if (.not. constant_exists) call compute_slopes_at_w2v(mesh_id)
+
+    call dz_dx_at_w2v_inventory%get_field(mesh, dz_dx_at_w2v)
+
+  end function get_dz_dx_at_w2v
+
+  !> @brief Returns the slope of the cell faces in the second horizontal
+  !!        direction at lowest-order W2v DoF locations
+  !> @param[in] mesh_id The ID of the mesh to get the object for
+  !> @return The dz_dy_at_w2v field
+  function get_dz_dy_at_w2v(mesh_id) result(dz_dy_at_w2v)
+
+    implicit none
+
+    integer(kind=i_def),    intent(in) :: mesh_id
+    type(mesh_type),           pointer :: mesh
+    type(field_type),          pointer :: dz_dy_at_w2v
+    logical(kind=l_def)                :: constant_exists
+
+    ! The slopes and slope factor are always computed together
+    if (.not. dz_dx_at_w2v_inventory%is_initialised()) then
+      call dz_dx_at_w2v_inventory%initialise(name="dz_dx_at_w2v")
+      call dz_dy_at_w2v_inventory%initialise(name="dz_dy_at_w2v")
+      call slope_factor_at_w2v_inventory%initialise(                           &
+              name="slope_factor_at_w2v"                                       &
+      )
+    end if
+
+    mesh => mesh_collection%get_mesh(mesh_id)
+    constant_exists = dz_dx_at_w2v_inventory%paired_object_exists(mesh_id)
+    if (.not. constant_exists) call compute_slopes_at_w2v(mesh_id)
+
+    call dz_dy_at_w2v_inventory%get_field(mesh, dz_dy_at_w2v)
+
+  end function get_dz_dy_at_w2v
+
+  !> @brief Returns the ratio of sloped to horizontal face area at
+  !!        lowest-order W2v DoF locations
+  !> @param[in] mesh_id The ID of the mesh to get the object for
+  !> @return The slope_factor_at_w2v field
+  function get_slope_factor_at_w2v(mesh_id) result(slope_factor_at_w2v)
+
+    implicit none
+
+    integer(kind=i_def),    intent(in) :: mesh_id
+    type(mesh_type),           pointer :: mesh
+    type(field_type),          pointer :: slope_factor_at_w2v
+    logical(kind=l_def)                :: constant_exists
+
+    ! The slopes and slope factor are always computed together
+    if (.not. dz_dx_at_w2v_inventory%is_initialised()) then
+      call dz_dx_at_w2v_inventory%initialise(name="dz_dx_at_w2v")
+      call dz_dy_at_w2v_inventory%initialise(name="dz_dy_at_w2v")
+      call slope_factor_at_w2v_inventory%initialise(                           &
+              name="slope_factor_at_w2v"                                       &
+      )
+    end if
+
+    mesh => mesh_collection%get_mesh(mesh_id)
+    constant_exists = dz_dx_at_w2v_inventory%paired_object_exists(mesh_id)
+    if (.not. constant_exists) call compute_slopes_at_w2v(mesh_id)
+
+    call slope_factor_at_w2v_inventory%get_field(mesh, slope_factor_at_w2v)
+
+  end function get_slope_factor_at_w2v
+
   ! ========================================================================== !
   ! PHYSICAL COORDINATES OF DOFs
   ! ========================================================================== !
@@ -1456,6 +1597,9 @@ contains
     call dx_at_w2_inventory%clear()
     call dz_at_wtheta_inventory%clear()
     call dA_msl_proj_inventory%clear()
+    call dz_dx_at_w2v_inventory%clear()
+    call dz_dy_at_w2v_inventory%clear()
+    call slope_factor_at_w2v_inventory%clear()
 
   end subroutine final_geometric_constants
 

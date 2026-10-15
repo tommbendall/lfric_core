@@ -17,12 +17,19 @@ module sci_split_combine_w2_alg_mod
   use fs_continuity_mod,             only: W2, W2h, W2v
   use function_space_mod,            only: function_space_type
   use function_space_collection_mod, only: function_space_collection
-  use sci_geometric_constants_mod,   only: get_face_selector_ew, &
+  use log_mod,                       only: log_event, LOG_LEVEL_ERROR
+  use sci_geometric_constants_mod,   only: get_dA_at_w2,            &
+                                           get_dz_dx_at_w2v,        &
+                                           get_dz_dy_at_w2v,        &
+                                           get_slope_factor_at_w2v, &
+                                           get_face_selector_ew,    &
                                            get_face_selector_ns
 
   ! Algorithms and kernels
-  use combine_w2_field_kernel_mod,   only: combine_w2_field_kernel_type
-  use split_w2_field_kernel_mod,     only: split_w2_field_kernel_type
+  use combine_w2_field_kernel_mod,        only: combine_w2_field_kernel_type
+  use split_w2_field_kernel_mod,          only: split_w2_field_kernel_type
+  use sci_combine_vert_wind_kernel_mod,   only: combine_vert_wind_kernel_type
+  use sci_split_vert_wind_kernel_mod,     only: split_vert_wind_kernel_type
 
  implicit none
 
@@ -35,26 +42,41 @@ contains
   ! =======================================================
   !> @brief Split a W2 field into horizontal and vertical
   !!        components
-  !> @param[in,out] hori_field      The horizontal part of the field
-  !> @param[in,out] vert_field      The vertical part of the field
-  !> @param[in]     field           The W2 field
+  !> @param[in,out] hori_field   The horizontal part of the field
+  !> @param[in]     field        The W2 field
+  !> @param[in,out] w2v_field    Optional field normal to the W2v faces
+  !> @param[in,out] vert_field   Optional true vertical wind
+  !> @details Exactly one of w2v_field and vert_field must be present. The true
+  !!          vertical wind is only available for lowest-order fields.
 
-  subroutine split_w2_field_alg( hori_field, vert_field, field )
+  subroutine split_w2_field_alg( hori_field, field, w2v_field, vert_field )
 
     implicit none
 
     ! Arguments
-    type(field_type),    intent(inout) :: hori_field
-    type(field_type),    intent(inout) :: vert_field
-    type(field_type),    intent(in)    :: field
+    type(field_type), intent(inout)           :: hori_field
+    type(field_type), intent(in)              :: field
+    type(field_type), intent(inout), optional :: w2v_field
+    type(field_type), intent(inout), optional :: vert_field
 
     ! Function spaces
     type(function_space_type), pointer :: w2h_fs
     type(function_space_type), pointer :: w2v_fs
     type(integer_field_type),  pointer :: face_selector_ew
     type(integer_field_type),  pointer :: face_selector_ns
+    type(field_type),          pointer :: dA_at_w2
+    type(field_type),          pointer :: dz_dx
+    type(field_type),          pointer :: dz_dy
+    type(field_type),          pointer :: slope_factor
+    type(field_type)                   :: w2v_field_tmp
     integer(i_def) :: element_order_h
     integer(i_def) :: element_order_v
+
+    ! Exactly one vertical output is needed
+    if (present(w2v_field) .eqv. present(vert_field)) then
+      call log_event( "split_w2_field_alg: exactly one of w2v_field and " //   &
+                      "vert_field must be present", LOG_LEVEL_ERROR )
+    end if
 
     ! Get element order
     element_order_h = field%get_element_order_h()
@@ -73,39 +95,83 @@ contains
     if (.not. hori_field%is_initialised()) then
       call hori_field%initialise(w2h_fs)
     end if
-    if (.not. vert_field%is_initialised()) then
-      call vert_field%initialise(w2h_fs)
-    end if
     ! Split the field
-    call invoke( split_w2_field_kernel_type(hori_field,       &
-                                            vert_field,       &
-                                            field,            &
-                                            face_selector_ew, &
-                                            face_selector_ns) )
+    if (present(vert_field)) then
+      if (element_order_h /= 0 .or. element_order_v /= 0) then
+        call log_event( "split_w2_field_alg: vert_field is only " //           &
+                        "available for lowest-order fields", LOG_LEVEL_ERROR )
+      end if
+      if (.not. vert_field%is_initialised()) then
+        call vert_field%initialise(w2v_fs)
+      end if
+      dA_at_w2 => get_dA_at_w2(field%get_mesh_id())
+      dz_dx => get_dz_dx_at_w2v(field%get_mesh_id())
+      dz_dy => get_dz_dy_at_w2v(field%get_mesh_id())
+      slope_factor => get_slope_factor_at_w2v(field%get_mesh_id())
+      ! Convert the W2v field normal to the faces to the true vertical wind
+      call w2v_field_tmp%initialise(w2v_fs)
+      call invoke( split_w2_field_kernel_type(hori_field,        &
+                                              w2v_field_tmp,     &
+                                              field,             &
+                                              face_selector_ew,  &
+                                              face_selector_ns), &
+                   split_vert_wind_kernel_type(vert_field,       &
+                                               hori_field,       &
+                                               w2v_field_tmp,    &
+                                               dA_at_w2,         &
+                                               dz_dx,            &
+                                               dz_dy,            &
+                                               slope_factor) )
+    else
+      if (.not. w2v_field%is_initialised()) then
+        call w2v_field%initialise(w2v_fs)
+      end if
+      call invoke( split_w2_field_kernel_type(hori_field,       &
+                                              w2v_field,        &
+                                              field,            &
+                                              face_selector_ew, &
+                                              face_selector_ns) )
+    end if
 
   end subroutine split_w2_field_alg
 
   ! =======================================================
   !> @brief Combine a W2h and W2v field to create a W2 field
-  !> @param[in,out] field           The combined W2 field
-  !> @param[in]     hori_field      The horizontal field
-  !> @param[in]     vert_field      The vertical field
+  !> @param[in,out] field        The combined W2 field
+  !> @param[in]     hori_field   The horizontal field
+  !> @param[in]     w2v_field    Optional field normal to the W2v faces
+  !> @param[in]     vert_field   Optional true vertical wind
+  !> @details Exactly one of w2v_field and vert_field must be present. The true
+  !!          vertical wind is only available for lowest-order fields.
 
-  subroutine combine_w2_field_alg( field, hori_field, vert_field )
+  subroutine combine_w2_field_alg( field, hori_field, w2v_field, vert_field )
 
     implicit none
 
     ! Arguments
-    type(field_type),    intent(inout) :: field
-    type(field_type),    intent(in)    :: hori_field
-    type(field_type),    intent(in)    :: vert_field
+    type(field_type), intent(inout)        :: field
+    type(field_type), intent(in)           :: hori_field
+    type(field_type), intent(in), optional :: w2v_field
+    type(field_type), intent(in), optional :: vert_field
 
     ! Function spaces
     type(function_space_type), pointer :: w2_fs
+    type(function_space_type), pointer :: w2v_fs
     type(integer_field_type),  pointer :: face_selector_ew
     type(integer_field_type),  pointer :: face_selector_ns
+    type(field_type),          pointer :: dA_at_w2
+    type(field_type),          pointer :: dz_dx
+    type(field_type),          pointer :: dz_dy
+    type(field_type),          pointer :: slope_factor
+    type(field_type)                   :: w2v_field_tmp
     integer(i_def) :: element_order_h
     integer(i_def) :: element_order_v
+
+    ! Exactly one vertical input is needed
+    if (present(w2v_field) .eqv. present(vert_field)) then
+      call log_event( "combine_w2_field_alg: exactly one of w2v_field and " // &
+                      "vert_field must be present", LOG_LEVEL_ERROR )
+    end if
 
     ! Get element order
     element_order_h = field%get_element_order_h()
@@ -122,11 +188,39 @@ contains
       call field%initialise(w2_fs)
     end if
     ! Combine the fields
-    call invoke( combine_w2_field_kernel_type(field,            &
-                                              hori_field,       &
-                                              vert_field,       &
-                                              face_selector_ew, &
-                                              face_selector_ns) )
+    if (present(vert_field)) then
+      if (element_order_h /= 0 .or. element_order_v /= 0) then
+        call log_event( "combine_w2_field_alg: vert_field is only " //         &
+                        "available for lowest-order fields", LOG_LEVEL_ERROR )
+      end if
+      w2v_fs => function_space_collection%get_fs( hori_field%get_mesh(), &
+                                                  element_order_h,       &
+                                                  element_order_v, W2v )
+      dA_at_w2 => get_dA_at_w2(hori_field%get_mesh_id())
+      dz_dx => get_dz_dx_at_w2v(hori_field%get_mesh_id())
+      dz_dy => get_dz_dy_at_w2v(hori_field%get_mesh_id())
+      slope_factor => get_slope_factor_at_w2v(hori_field%get_mesh_id())
+      ! Convert the true vertical wind to the W2v field normal to the faces
+      call w2v_field_tmp%initialise(w2v_fs)
+      call invoke( combine_vert_wind_kernel_type(w2v_field_tmp,     &
+                                                 hori_field,        &
+                                                 vert_field,        &
+                                                 dA_at_w2,          &
+                                                 dz_dx,             &
+                                                 dz_dy,             &
+                                                 slope_factor),     &
+                   combine_w2_field_kernel_type(field,              &
+                                                hori_field,         &
+                                                w2v_field_tmp,      &
+                                                face_selector_ew,   &
+                                                face_selector_ns) )
+    else
+      call invoke( combine_w2_field_kernel_type(field,            &
+                                                hori_field,       &
+                                                w2v_field,        &
+                                                face_selector_ew, &
+                                                face_selector_ns) )
+    end if
 
   end subroutine combine_w2_field_alg
 

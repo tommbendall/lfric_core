@@ -1,0 +1,234 @@
+!-----------------------------------------------------------------------------
+! (C) Crown copyright Met Office. All rights reserved.
+! The file LICENCE, distributed with this code, contains details of the terms
+! under which the code may be used.
+!-----------------------------------------------------------------------------
+! Some of the content of this file has been produced with the assistance of
+! Met Office Github Copilot Enterprise
+!-----------------------------------------------------------------------------
+
+!> Test the computation of slopes and slope factor at W2v points
+module calc_slopes_at_w2v_kernel_mod_test
+
+  use constants_mod, only : i_def, r_def, imdi
+
+  use get_unit_test_m3x3_q3x3x3_sizes_mod, only : get_w0_m3x3_q3x3x3_size, &
+                                                  get_w2v_m3x3_q3x3x3_size, &
+                                                  get_w3_m3x3_q3x3x3_size
+
+  use get_unit_test_m3x3_dofmap_mod, only : get_w0_m3x3_dofmap, &
+                                            get_w2v_m3x3_dofmap, &
+                                            get_w3_m3x3_dofmap
+
+  use get_unit_test_q3x3x3_basis_mod, only : get_w0_q3x3x3_diff_basis, &
+                                              get_w0_q3x3x3_basis
+
+  use funit
+
+  implicit none
+
+  private
+  public :: test_all
+
+  @TestCase
+  type, extends(TestCase), public :: calc_slopes_at_w2v_test_type
+    private
+  contains
+    procedure setUp
+    procedure tearDown
+    procedure test_all
+  end type calc_slopes_at_w2v_test_type
+
+contains
+
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  subroutine setUp(this)
+
+    use finite_element_config_mod, only : cellshape_quadrilateral, &
+                                          coord_system_xyz
+    use feign_config_mod, only : feign_finite_element_config
+    use sci_chi_transform_mod, only : init_chi_transforms
+
+    implicit none
+
+    class(calc_slopes_at_w2v_test_type), intent(inout) :: this
+
+    call feign_finite_element_config(cellshape=cellshape_quadrilateral, &
+                                    coord_order=0_i_def, &
+                                    coord_system=coord_system_xyz, &
+                                    element_order_h=0_i_def, &
+                                    element_order_v=0_i_def, &
+                                    rehabilitate=.true.)
+
+    call init_chi_transforms(imdi, imdi)
+
+  end subroutine setUp
+
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  subroutine tearDown(this)
+
+    use config_loader_mod, only : final_configuration
+    use sci_chi_transform_mod, only : final_chi_transforms
+
+    implicit none
+
+    class(calc_slopes_at_w2v_test_type), intent(inout) :: this
+
+    call final_configuration()
+    call final_chi_transforms()
+
+  end subroutine tearDown
+
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  @Test
+  subroutine test_all(this)
+
+    use, intrinsic :: iso_fortran_env, only : real64
+    use base_mesh_config_mod, only : geometry_planar, topology_fully_periodic
+    use finite_element_config_mod, only : coord_system_xyz
+    use sci_calc_slopes_at_w2v_kernel_mod, only : calc_slopes_at_w2v_code
+
+    implicit none
+
+    class(calc_slopes_at_w2v_test_type), intent(inout) :: this
+
+    real(kind=r_def), parameter :: dx = 4.0_r_def
+    real(kind=r_def), parameter :: dy = 7.0_r_def
+    real(kind=r_def), parameter :: dz = 13.0_r_def
+    real(kind=r_def), parameter :: dzdx = 0.75_r_def
+    real(kind=r_def), parameter :: dzdy = -0.5_r_def
+
+    ! Configuration values passed to the kernel (radius is unused for xyz)
+    real(kind=r_def), parameter :: scaled_radius = 1.0_r_def
+
+    ! Fields
+    real(kind=r_def), allocatable :: dz_dx(:), dz_dy(:), slope_factor(:)
+    real(kind=r_def), allocatable :: chi1(:), chi2(:), &
+                                    chi3(:), panel_id(:)
+
+    ! Dofmaps
+    integer(kind=i_def), allocatable :: map_w0(:,:)
+    integer(kind=i_def), allocatable :: map_w2v(:,:)
+    integer(kind=i_def), allocatable :: map_pid(:,:)
+
+    ! Basis function
+    real(kind=r_def), allocatable :: diff_basis_w0(:,:,:,:)
+    real(kind=r_def), allocatable :: basis_w0(:,:,:,:)
+
+    real(kind=r_def) :: use_tol, expected_factor
+    integer(kind=i_def) :: i, j, k, cell
+
+    ! Sizes
+    integer(kind=i_def) :: nlayers, ncells
+    integer(kind=i_def) :: ndf_w0, undf_w0, ndf_w2v, &
+                           undf_w2v, ndf_pid, undf_pid
+    integer(kind=i_def) :: dim_space, dim_space_diff
+    integer(kind=i_def) :: nqp_h, nqp_v
+
+    nlayers = 3
+    call get_w0_m3x3_q3x3x3_size(ndf_w0, undf_w0, ncells, &
+                                 dim_space, dim_space_diff, &
+                                 nqp_h, nqp_v, nlayers)
+    call get_w2v_m3x3_q3x3x3_size(ndf_w2v, undf_w2v, ncells, &
+                                  dim_space, dim_space_diff, &
+                                  nqp_h, nqp_v, nlayers)
+    call get_w3_m3x3_q3x3x3_size(ndf_pid, undf_pid, ncells, &
+                                 dim_space, dim_space_diff, &
+                                 nqp_h, nqp_v, 1)
+
+    call get_w0_m3x3_dofmap(map_w0)
+    call get_w2v_m3x3_dofmap(map_w2v)
+    call get_w3_m3x3_dofmap(map_pid, 1)
+
+    call get_w0_q3x3x3_diff_basis(diff_basis_w0)
+    call get_w0_q3x3x3_basis(basis_w0)
+
+    ! Compute coordinates
+    allocate(chi1(undf_w0))
+    allocate(chi2(undf_w0))
+    allocate(chi3(undf_w0))
+    allocate(panel_id(undf_pid))
+
+    panel_id(:) = 1.0_r_def
+
+    cell = 1
+    do j = 1, 3
+      do i = 1, 3
+        do k = 0, 3
+          chi1(map_w0(1, cell) + k) = real(i-1, kind=r_def) * dx
+          chi2(map_w0(1, cell) + k) = real(j-1, kind=r_def) * dy
+          chi3(map_w0(1, cell) + k) = real(k, kind=r_def) * dz + &
+                                      real(i-1, kind=r_def) * dzdx * dx + &
+                                      real(j-1, kind=r_def) * dzdy * dy
+        end do
+        cell = cell + 1
+      end do
+    end do
+
+    ! Create the data
+    allocate(dz_dx(undf_w2v))
+    allocate(dz_dy(undf_w2v))
+    allocate(slope_factor(undf_w2v))
+    dz_dx(:) = 0.0_r_def
+    dz_dy(:) = 0.0_r_def
+    slope_factor(:) = 0.0_r_def
+
+    cell = 1
+
+    call calc_slopes_at_w2v_code(nlayers, &
+                                dz_dx, dz_dy, &
+                                slope_factor, &
+                                chi1, &
+                                chi2, &
+                                chi3, &
+                                panel_id, &
+                                coord_system_xyz, &
+                                geometry_planar, &
+                                topology_fully_periodic, &
+                                scaled_radius, &
+                                ndf_w2v, &
+                                undf_w2v, &
+                                map_w2v(:, cell), &
+                                ndf_w0, &
+                                undf_w0, &
+                                map_w0(:, cell), &
+                                basis_w0, &
+                                diff_basis_w0, &
+                                ndf_pid, &
+                                undf_pid, &
+                                map_pid(:, cell))
+
+    ! Planar mesh with orthogonal columns: the slopes are those used to build
+    ! chi, and slope_factor = sqrt(1 + dzdx**2 + dzdy**2)
+    expected_factor = sqrt(1.0_r_def + dzdx**2 + dzdy**2)
+
+    if (r_def == real64) then
+      use_tol = 1.0e-8_r_def
+    else
+      use_tol = 1.0e-5_r_def
+    end if
+
+    ! The first W2v dof of each cell is its bottom; the domain top is the
+    ! second dof of the highest cell, which is the first dof of level nlayers
+    do k = 0, nlayers
+      @assertEqual(dzdx, dz_dx(map_w2v(1, cell) + k), use_tol)
+      @assertEqual(dzdy, dz_dy(map_w2v(1, cell) + k), use_tol)
+      @assertEqual(expected_factor, slope_factor(map_w2v(1, cell) + k), use_tol)
+    end do
+
+    deallocate(dz_dx)
+    deallocate(dz_dy)
+    deallocate(slope_factor)
+    deallocate(chi1)
+    deallocate(chi2)
+    deallocate(chi3)
+    deallocate(panel_id)
+    deallocate(map_w0)
+    deallocate(map_w2v)
+    deallocate(map_pid)
+    deallocate(diff_basis_w0)
+    deallocate(basis_w0)
+
+  end subroutine test_all
+
+end module calc_slopes_at_w2v_kernel_mod_test

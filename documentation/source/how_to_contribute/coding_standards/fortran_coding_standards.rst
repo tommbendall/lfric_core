@@ -245,6 +245,18 @@ General rules
        !> @param[in,out] inoutput_arg Description of an updated argument
        !> @param[in]     input_arg    Description of an input argument
 
+  * Keep each ``@param`` description to a single line and align the
+    descriptions in one column. Continued lines of any other Doxygen comment
+    start with ``!!``.
+  * In kernel argument lists, describe the arguments for a function space
+    ``X`` as follows:
+
+    .. code-block:: fortran
+
+       !> @param[in]     ndf_X     Num DoFs per cell for X
+       !> @param[in]     undf_X    Num DoFs in this partition for X
+       !> @param[in]     map_X     Map of base cell DoFs for X
+
 * A :ref:`field collection <field collection>` must be declared ``intent(in)`` as
   it is the set of fields in the collection, and not the field collection object
   itself, that is modified.
