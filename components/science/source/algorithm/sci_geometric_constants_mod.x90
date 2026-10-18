@@ -448,7 +448,9 @@ contains
       if ( LPROF ) call start_timing( id, 'runtime_constants.geometric' )
 
       w2_k0_fs => function_space_collection%get_fs(mesh, 0, 0, W2)
-      call dA_at_w2_inventory%add_field(dA_at_w2, w2_k0_fs, mesh)
+      call dA_at_w2_inventory%add_field(                                       &
+          dA_at_w2, w2_k0_fs, mesh, halo_depth=MIN(2, mesh%get_halo_depth())   &
+      )
 
       call invoke( setval_c(dA_at_w2, 0.0_r_def),                              &
                    calc_dA_at_w2_kernel_type(dA_at_w2, chi, panel_id) )
@@ -1381,7 +1383,9 @@ contains
 
       space => function_space_collection%get_fs(mesh, element_order_h, &
                                                 element_order_v, space_id)
-      call inventory%add_field(height, space, mesh)
+      call inventory%add_field(                                                &
+          height, space, mesh, halo_depth=MIN(2, mesh%get_halo_depth())        &
+      )
 
       call invoke( get_height_kernel_type(height, chi, scaled_radius) )
 
@@ -1454,7 +1458,9 @@ contains
       if ( LPROF ) call start_timing( id, 'runtime_constants.geometric' )
 
       space => function_space_collection%get_fs(mesh, 0, 0, space_id)
-      call inventory%add_field(height, space, mesh)
+      call inventory%add_field(                                                &
+          height, space, mesh, halo_depth=MIN(2, mesh%get_halo_depth())        &
+      )
 
       call invoke( get_height_kernel_type(height, chi, scaled_radius) )
 
