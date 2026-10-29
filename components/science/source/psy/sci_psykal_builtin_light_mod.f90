@@ -542,7 +542,7 @@ contains
         l_field_sum(th_idx) = l_field_sum(th_idx) + field_proxy%data(df)
         l_field_norm(th_idx) = l_field_norm(th_idx) + field_proxy%data(df)*field_proxy%data(df)
       else
-        l_nan_count = l_nan_count + 1
+        l_nan_count(th_idx) = l_nan_count(th_idx) + 1
       end if
     end do
     !$omp end do
@@ -630,7 +630,7 @@ contains
         l_field_sum(th_idx) = l_field_sum(th_idx) + field_proxy%data(df)
         l_field_norm(th_idx) = l_field_norm(th_idx) + field_proxy%data(df)*field_proxy%data(df)
       else
-        l_nan_count = l_nan_count + 1
+        l_nan_count(th_idx) = l_nan_count(th_idx) + 1
       end if
     end do
     !$omp end do
@@ -650,6 +650,7 @@ contains
     deallocate(l_field_sum, l_field_norm, l_nan_count)
     global_sum%value = field_sum
     global_norm%value = field_norm
+    global_nan_count%value = nan_count
     field_sum = global_sum%get_sum()
     field_norm = SQRT(MAX(global_norm%get_sum(), 0.0_real64))
     ! Attempt to stop overflows as global NaN count may be bigger than can be
