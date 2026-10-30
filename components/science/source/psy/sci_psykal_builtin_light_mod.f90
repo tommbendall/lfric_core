@@ -318,10 +318,13 @@ contains
     th_idx = omp_get_thread_num()+1
     !$omp do schedule(static)
     do df = loop0_start, loop0_stop
-      l_field_min_norm(th_idx) = min(l_field_min_norm(th_idx), &
-                                     field_proxy%data(df))
-      l_field_max_norm(th_idx) = max(l_field_max_norm(th_idx), &
-                                     field_proxy%data(df))
+      if (iand(transfer(field_proxy%data(df), 0_int32), &
+               int(Z'7F800000', int32)) /= int(Z'7F800000', int32)) then
+        l_field_min_norm(th_idx) = min(l_field_min_norm(th_idx), &
+                                       field_proxy%data(df))
+        l_field_max_norm(th_idx) = max(l_field_max_norm(th_idx), &
+                                       field_proxy%data(df))
+      end if
     end do
     !$omp end do
     !$omp end parallel
@@ -391,10 +394,14 @@ contains
     th_idx = omp_get_thread_num()+1
     !$omp do schedule(static)
     do df = loop0_start, loop0_stop
-      l_field_min_norm(th_idx) = min(l_field_min_norm(th_idx), &
-                                     field_proxy%data(df))
-      l_field_max_norm(th_idx) = max(l_field_max_norm(th_idx), &
-                                     field_proxy%data(df))
+      if (iand(transfer(field_proxy%data(df), 0_int64), &
+               int(Z'7FF0000000000000', int64)) /= &
+          int(Z'7FF0000000000000', int64)) then
+        l_field_min_norm(th_idx) = min(l_field_min_norm(th_idx), &
+                                       field_proxy%data(df))
+        l_field_max_norm(th_idx) = max(l_field_max_norm(th_idx), &
+                                       field_proxy%data(df))
+      end if
     end do
     !$omp end do
     !$omp end parallel
